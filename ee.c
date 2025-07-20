@@ -81,6 +81,46 @@ char *version = "@(#) ee, version "  EE_VERSION  " $Revision: 1.104 $";
 #include <stdarg.h>
 #include <sys/wait.h>
 
+/* ---- Undo support ---- */
+typedef struct UndoOperation {
+    int type;                    /* edit operation type                */
+    int line;                    /* line number of edit                */
+    int pos;                     /* position within the line           */
+    char *text;                  /* text affected by the edit          */
+    struct UndoOperation *next;  /* next item in stack                 */
+} UndoOperation;
+
+/* operation types for UndoOperation */
+#define UNDO_INSERT 1
+#define UNDO_DELETE 2
+#define UNDO_REPLACE 3
+
+/* global undo/redo stacks */
+static UndoOperation *undo_stack = NULL;
+static UndoOperation *redo_stack = NULL;
+
+static void push_undo(UndoOperation **stack, int type, int line, int pos,
+                      const char *text)
+{
+    UndoOperation *op = malloc(sizeof(UndoOperation));
+    if (!op)
+        return;
+    op->type = type;
+    op->line = line;
+    op->pos = pos;
+    op->text = text ? strdup(text) : NULL;
+    op->next = *stack;
+    *stack = op;
+}
+
+static UndoOperation *pop_undo(UndoOperation **stack)
+{
+    UndoOperation *op = *stack;
+    if (op)
+        *stack = op->next;
+    return op;
+}
+
 /* ---- Internationalization fallback ---- */
 #ifndef NO_CATGETS
 #include <nl_types.h>
