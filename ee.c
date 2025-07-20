@@ -203,6 +203,21 @@ WINDOW *text_win;
 WINDOW *help_win;
 WINDOW *info_win;
 
+typedef enum {
+        UOP_INSERT,
+        UOP_DELETE
+} UndoType;
+
+typedef struct UndoOperation {
+        UndoType type;
+        struct text *line;
+        int position;
+        unsigned char *data;
+} UndoOperation;
+
+static UndoOperation undo_stack[100];
+static int undo_top = 0;
+
 
 /*
  |	The following structure allows menu items to be flexibly declared.
@@ -283,6 +298,7 @@ void del_word(void);
 void undel_word(void);
 void del_line(void);
 void undel_line(void);
+void push_undo(UndoType type, struct text *line, int position, const unsigned char *data);
 void adv_word(void);
 void move_rel(int direction, int lines);
 void eol(void);
@@ -648,7 +664,22 @@ main(int argc, char *argv[])
 				control();
 		}
 	}
-	return(0);
+       return(0);
+}
+
+void
+push_undo(UndoType type, struct text *line, int position, const unsigned char *data)
+{
+        if (undo_top >= 100)
+                return;
+        undo_stack[undo_top].type = type;
+        undo_stack[undo_top].line = line;
+        undo_stack[undo_top].position = position;
+        if (data)
+                undo_stack[undo_top].data = strdup((char *)data);
+        else
+                undo_stack[undo_top].data = NULL;
+        undo_top++;
 }
 
 /* resize the line to length + factor*/
@@ -747,7 +778,8 @@ insert(int character)
 	else if ((character != ' ') && (character != '\t'))
 		formatted = FALSE;
 
-	draw_line(scr_vert, scr_horz, point, position, curr_line->line_length);
+       draw_line(scr_vert, scr_horz, point, position, curr_line->line_length);
+       push_undo(UOP_INSERT, curr_line, position - 1, (unsigned char *)&character);
 }
 
 /* delete character		*/
