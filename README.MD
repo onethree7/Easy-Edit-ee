@@ -7,21 +7,19 @@ This exists because I kept typing `ee` out of habit. Something in this editor is
 ## Requirements
 
 - GCC (or any C99-compatible compiler)
-- `libncurses-dev`
-
-**Debian/Ubuntu:**
-```sh
-sudo apt-get install build-essential libncurses-dev
-```
+- `libncurses-dev & build-essentials`
 
 ## Installation
 
-Build and install globally (as root):
+Clone the repo and build:
 
 ```sh
+git clone https://github.com/onethree7/Easy-Edit-ee.git
+cd Easy-Edit-ee
+sudo apt-get install build-essential libncurses-dev
 make
 strip ee
-mv ee /usr/local/bin/
+sudo mv ee /usr/local/bin/
 ```
 
 This puts `ee` in your `$PATH` for all users.
@@ -66,4 +64,3 @@ This port is provided as-is and for my personal use/fun.
 
 Upstream: [https://cgit.freebsd.org/src/tree/contrib/ee](https://cgit.freebsd.org/src/tree/contrib/ee)
 Ported for Linux by [Florian Kefferpuetz]
-
