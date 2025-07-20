@@ -40,6 +40,7 @@ See the built-in help (`help` command or `^c`) for keybindings.
 - Minimal dependencies (`ncurses` only)
 - Portable codebase for basic editing needs
 - Retains much of the classic BSD behavior and keymap
+- Supports undo and redo (`Ctrl+_` and `Ctrl+Shift+_` by default)
 
 ## Porting Notes
 
