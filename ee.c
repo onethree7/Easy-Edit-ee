@@ -283,6 +283,8 @@ void del_word(void);
 void undel_word(void);
 void del_line(void);
 void undel_line(void);
+void undo(void);
+void redo(void);
 void adv_word(void);
 void move_rel(int direction, int lines);
 void eol(void);
@@ -1184,7 +1186,7 @@ control(void)
 	else if (in == 5)	/* control e	*/
 		search_prompt();
 	else if (in == 6)	/* control f	*/
-		undel_char();
+		undo();
 	else if (in == 7)	/* control g	*/
 		bol();
 	else if (in == 8)	/* control h	*/
@@ -1216,7 +1218,7 @@ control(void)
 	else if (in == 21)	/* control u	*/
 		up();
 	else if (in == 22)	/* control v	*/
-		undel_word();
+		redo();
 	else if (in == 23)	/* control w	*/
 		del_word();
 	else if (in == 24)	/* control x	*/
@@ -1224,7 +1226,7 @@ control(void)
 	else if (in == 25)	/* control y	*/
 		del_line();
 	else if (in == 26)	/* control z	*/
-		undel_line();
+		undo();
 	else if (in == 27)	/* control [ (escape)	*/
 	{
 		menu_op(main_menu);
@@ -1261,11 +1263,11 @@ emacs_control(void)
 	else if (in == 9)	/* control i	*/
 		;
 	else if (in == 10)	/* control j	*/
-		undel_char();
+		undo();
 	else if (in == 11)	/* control k	*/
 		del_line();
 	else if (in == 12)	/* control l	*/
-		undel_line();
+		undo();
 	else if (in == 13)	/* control m	*/
 		insert_line(TRUE);
 	else if (in == 14)	/* control n	*/
@@ -1286,7 +1288,7 @@ emacs_control(void)
 	else if (in == 17)	/* control q	*/
 		;
 	else if (in == 18)	/* control r	*/
-		undel_word();
+		redo();
 	else if (in == 19)	/* control s	*/
 		;
 	else if (in == 20)	/* control t	*/
@@ -2911,13 +2913,27 @@ undel_line(void)
 }
 
 /* advance to next word		*/
-void 
+void
 adv_word(void)
 {
 while ((position < curr_line->line_length) && ((*point != 32) && (*point != 9)))
-		right(TRUE);
+                right(TRUE);
 while ((position < curr_line->line_length) && ((*point == 32) || (*point == 9)))
-		right(TRUE);
+                right(TRUE);
+}
+
+/* undo last change - placeholder */
+void
+undo(void)
+{
+        undel_line();
+}
+
+/* redo last undone change - placeholder */
+void
+redo(void)
+{
+        /* redo functionality not implemented */
 }
 
 /* move relative to current line	*/
@@ -5099,11 +5115,11 @@ strings_init(void)
 	help_text[1] = catgetlocal( 36, "^a ascii code           ^i tab                  ^r right                   ");
 	help_text[2] = catgetlocal( 37, "^b bottom of text       ^j newline              ^t top of text             ");
 	help_text[3] = catgetlocal( 38, "^c command              ^k delete char          ^u up                      ");
-	help_text[4] = catgetlocal( 39, "^d down                 ^l left                 ^v undelete word           ");
+	help_text[4] = catgetlocal( 39, "^d down                 ^l left                 ^v redo           ");
 	help_text[5] = catgetlocal( 40, "^e search prompt        ^m newline              ^w delete word             ");
-	help_text[6] = catgetlocal( 41, "^f undelete char        ^n next page            ^x search                  ");
+	help_text[6] = catgetlocal( 41, "^f undo        ^n next page            ^x search                  ");
 	help_text[7] = catgetlocal( 42, "^g begin of line        ^o end of line          ^y delete line             ");
-	help_text[8] = catgetlocal( 43, "^h backspace            ^p prev page            ^z undelete line           ");
+	help_text[8] = catgetlocal( 43, "^h backspace            ^p prev page            ^z undo           ");
 	help_text[9] = catgetlocal( 44, "^[ (escape) menu        ESC-Enter: exit ee                                 ");
 	help_text[10] = catgetlocal( 45, "                                                                           ");
 	help_text[11] = catgetlocal( 46, "Commands:                                                                  ");
@@ -5118,10 +5134,10 @@ strings_init(void)
 	help_text[20] = catgetlocal( 55, "  ee [+#] [-i] [-e] [-h] [file(s)]                                            ");
 	help_text[21] = catgetlocal( 56, "+# :go to line #  -i :no info window  -e : don't expand tabs  -h :no highlight");
 	control_keys[0] = catgetlocal( 57, "^[ (escape) menu  ^e search prompt  ^y delete line    ^u up     ^p prev page  ");
-	control_keys[1] = catgetlocal( 58, "^a ascii code     ^x search         ^z undelete line  ^d down   ^n next page  ");
+	control_keys[1] = catgetlocal( 58, "^a ascii code     ^x search         ^z undo  ^d down   ^n next page  ");
 	control_keys[2] = catgetlocal( 59, "^b bottom of text ^g begin of line  ^w delete word    ^l left                 ");
-	control_keys[3] = catgetlocal( 60, "^t top of text    ^o end of line    ^v undelete word  ^r right                ");
-	control_keys[4] = catgetlocal( 61, "^c command        ^k delete char    ^f undelete char      ESC-Enter: exit ee  ");
+	control_keys[3] = catgetlocal( 60, "^t top of text    ^o end of line    ^v redo  ^r right                ");
+	control_keys[4] = catgetlocal( 61, "^c command        ^k delete char    ^f undo      ESC-Enter: exit ee  ");
 	command_strings[0] = catgetlocal( 62, "help : get help info  |file  : print file name         |line : print line # ");
 	command_strings[1] = catgetlocal( 63, "read : read a file    |char  : ascii code of char      |0-9 : go to line \"#\"");
 	command_strings[2] = catgetlocal( 64, "write: write a file   |case  : case sensitive search   |exit : leave and save ");
@@ -5210,10 +5226,10 @@ strings_init(void)
 	 */
 	mode_strings[7] = catgetlocal( 145, "emacs key bindings   ");
 	emacs_help_text[0] = help_text[0];
-	emacs_help_text[1] = catgetlocal( 146, "^a beginning of line    ^i tab                  ^r restore word            ");
-	emacs_help_text[2] = catgetlocal( 147, "^b back 1 char          ^j undel char           ^t top of text             ");
+	emacs_help_text[1] = catgetlocal( 146, "^a beginning of line    ^i tab                  ^r redo            ");
+	emacs_help_text[2] = catgetlocal( 147, "^b back 1 char          ^j undo           ^t top of text             ");
 	emacs_help_text[3] = catgetlocal( 148, "^c command              ^k delete line          ^u bottom of text          ");
-	emacs_help_text[4] = catgetlocal( 149, "^d delete char          ^l undelete line        ^v next page               ");
+	emacs_help_text[4] = catgetlocal( 149, "^d delete char          ^l undo        ^v next page               ");
 	emacs_help_text[5] = catgetlocal( 150, "^e end of line          ^m newline              ^w delete word             ");
 	emacs_help_text[6] = catgetlocal( 151, "^f forward 1 char       ^n next line            ^x search                  ");
 	emacs_help_text[7] = catgetlocal( 152, "^g go back 1 page       ^o ascii char insert    ^y search prompt           ");
@@ -5232,10 +5248,10 @@ strings_init(void)
 	emacs_help_text[20] = help_text[20];
 	emacs_help_text[21] = help_text[21];
 	emacs_control_keys[0] = catgetlocal( 154, "^[ (escape) menu ^y search prompt ^k delete line   ^p prev li     ^g prev page");
-	emacs_control_keys[1] = catgetlocal( 155, "^o ascii code    ^x search        ^l undelete line ^n next li     ^v next page");
+	emacs_control_keys[1] = catgetlocal( 155, "^o ascii code    ^x search        ^l undo ^n next li     ^v next page");
 	emacs_control_keys[2] = catgetlocal( 156, "^u end of file   ^a begin of line ^w delete word   ^b back 1 char ^z next word");
-	emacs_control_keys[3] = catgetlocal( 157, "^t top of text   ^e end of line   ^r restore word  ^f forward char            ");
-	emacs_control_keys[4] = catgetlocal( 158, "^c command       ^d delete char   ^j undelete char              ESC-Enter: exit");
+	emacs_control_keys[3] = catgetlocal( 157, "^t top of text   ^e end of line   ^r redo  ^f forward char            ");
+	emacs_control_keys[4] = catgetlocal( 158, "^c command       ^d delete char   ^j undo              ESC-Enter: exit");
 	EMACS_string = catgetlocal( 159, "EMACS");
 	NOEMACS_string = catgetlocal( 160, "NOEMACS");
 	usage4 = catgetlocal( 161, "       +#   put cursor at line #\n");
