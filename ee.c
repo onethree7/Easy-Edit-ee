@@ -652,46 +652,60 @@ main(int argc, char *argv[])
 			wrefresh(info_win);
 		}
 
-		wrefresh(text_win);
-		in = wgetch(text_win);
-		if (in == -1)
-			exit(0);  /* without this exit ee will go into an 
-			             infinite loop if the network 
-			             session detaches */
+                wrefresh(text_win);
 
-		resize_check();
+                int buf[4096];
+                int buf_len = 0;
 
-		if (clear_com_win)
-		{
-			clear_com_win = FALSE;
-			wmove(com_win, 0, 0);
-			werase(com_win);
-			if (!info_window)
-			{
-				wprintw(com_win, "%s", com_win_message);
-			}
-			wrefresh(com_win);
-		}
+                in = wgetch(text_win);
+                if (in == -1)
+                        exit(0);  /* without this exit ee will go into an
+                                     infinite loop if the network
+                                     session detaches */
 
-                if (in > 255)
-                {
-                        last_action = ACT_NONE;
-                        function_key();
-                }
-		else if ((in == '\10') || (in == 127))
-		{
-			in = 8;		/* make sure key is set to backspace */
-			delete(TRUE);
-		}
-		else if ((in > 31) || (in == 9))
-			insert(in);
-                else if ((in >= 0) && (in <= 31))
-                {
-                        last_action = ACT_NONE;
-                        if (emacs_keys_mode)
-                                emacs_control();
-                        else
-                                control();
+                buf[buf_len++] = in;
+                nodelay(text_win, TRUE);
+                while (buf_len < 4096 && (in = wgetch(text_win)) != ERR)
+                        buf[buf_len++] = in;
+                nodelay(text_win, FALSE);
+
+                /*
+                 * Reset action tracking once per input chunk so the undo
+                 * stack records a single snapshot for an entire paste or
+                 * single key press.
+                 */
+                last_action = ACT_NONE;
+
+                for (int i = 0; i < buf_len; i++) {
+                        in = buf[i];
+
+                        resize_check();
+
+                        if (clear_com_win) {
+                                clear_com_win = FALSE;
+                                wmove(com_win, 0, 0);
+                                werase(com_win);
+                                if (!info_window) {
+                                        wprintw(com_win, "%s", com_win_message);
+                                }
+                                wrefresh(com_win);
+                        }
+
+                        if (in > 255) {
+                                last_action = ACT_NONE;
+                                function_key();
+                        } else if ((in == '\10') || (in == 127)) {
+                                in = 8;         /* make sure key is set to backspace */
+                                delete(TRUE);
+                        } else if ((in > 31) || (in == 9))
+                                insert(in);
+                        else if ((in >= 0) && (in <= 31)) {
+                                last_action = ACT_NONE;
+                                if (emacs_keys_mode)
+                                        emacs_control();
+                                else
+                                        control();
+                        }
                 }
 	}
 	return(0);
@@ -1232,6 +1246,11 @@ static void apply_snapshot(struct snapshot *snap)
         draw_screen();
 }
 
+/*
+ * Save the current editor state on the undo stack.
+ * This is called whenever an input event begins modifying text so
+ * that each key press or paste can be undone individually.
+ */
 void push_undo_state(void)
 {
         struct snapshot snap = take_snapshot();
@@ -1250,6 +1269,11 @@ void push_undo_state(void)
         }
 }
 
+/*
+ * Restore the previous snapshot.  Because snapshots are taken per
+ * input event, this reverts exactly one user action (a single key
+ * press or paste).
+ */
 void undo_action(void)
 {
         last_action = ACT_NONE;
@@ -1268,6 +1292,10 @@ void undo_action(void)
         apply_snapshot(&undo_stack[undo_pos]);
 }
 
+/*
+ * Reapply a snapshot that was previously undone, effectively
+ * reinstating one user input event.
+ */
 void redo_action(void)
 {
         last_action = ACT_NONE;
@@ -1361,7 +1389,7 @@ control(void)
 		delete(TRUE);
 	else if (in == 9)	/* control i	*/
 		;
-	else if (in == 10)	/* control j	*/
+	else if (in == '\10')	/* control j	*/
 		insert_line(TRUE);
 	else if (in == 11)	/* control k	*/
 		undo_action();
@@ -1430,7 +1458,7 @@ emacs_control(void)
 		delete(TRUE);
 	else if (in == 9)	/* control i	*/
 		;
-	else if (in == 10)	/* control j	*/
+	else if (in == '\10')	/* control j	*/
 		redo_action();
 	else if (in == 11)	/* control k	*/
 		del_line();
