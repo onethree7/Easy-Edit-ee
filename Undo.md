@@ -13,15 +13,15 @@ actions in `ee`.
 
 ## Input Granularity
 
-Each physical input is treated as one unit:
+Each physical input is grouped into an *undo chunk*:
 
-- A normal key press stores a snapshot before inserting that character.
-- A paste operation is detected by reading the terminal's input buffer and
-  grouping all available characters. One snapshot is stored before the entire
-  chunk is inserted.
+- Consecutive key presses within 500ms of each other extend the current chunk.
+- A paste operation is detected by reading the terminal buffer and always forms
+  a single chunk regardless of length or newlines.
 
-This ensures undo/redo steps correspond directly to physical actions rather
-than individual characters or lines.
+Newlines are treated like normal text insertion so multi-line pastes undo in a
+single step. This ensures undo/redo steps correspond directly to physical
+actions rather than individual characters or lines.
 
 ## Stack Behaviour
 
@@ -36,5 +36,7 @@ than individual characters or lines.
 
 During input handling the editor reads all buffered characters after the first
 `wgetch()` call. This groups pasted text into a single array processed in one
-loop. `last_action` is reset once per input chunk so that `start_action()`
-stores only one snapshot for the entire group of characters.
+loop. A timestamp check resets `last_action` if more than 500ms have elapsed
+since the previous input, ensuring typed characters merge into larger chunks
+while pastes are kept intact. `start_action()` then stores only one snapshot for
+the entire group of characters.

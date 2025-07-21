@@ -80,6 +80,7 @@ char *version = "@(#) ee, version "  EE_VERSION  " $Revision: 1.104 $";
 #include <stdio.h>
 #include <stdarg.h>
 #include <sys/wait.h>
+#include <time.h>
 
 /* ---- Internationalization fallback ---- */
 #ifndef NO_CATGETS
@@ -225,7 +226,6 @@ enum action_type {
     ACT_NONE = 0,
     ACT_INSERT,
     ACT_DELETE,
-    ACT_INSERT_LINE,
     ACT_DEL_WORD,
     ACT_UNDEL_WORD,
     ACT_DEL_LINE,
@@ -233,6 +233,7 @@ enum action_type {
 };
 
 static enum action_type last_action = ACT_NONE;
+static struct timespec last_input_time = {0};
 
 
 /*
@@ -670,11 +671,17 @@ main(int argc, char *argv[])
                 nodelay(text_win, FALSE);
 
                 /*
-                 * Reset action tracking once per input chunk so the undo
-                 * stack records a single snapshot for an entire paste or
-                 * single key press.
+                 * Determine whether this is a new input chunk. A paste
+                 * or a pause of more than 500ms between keys starts a new
+                 * undo group.
                  */
-                last_action = ACT_NONE;
+                struct timespec now;
+                clock_gettime(CLOCK_MONOTONIC, &now);
+                long diff_ms = (now.tv_sec - last_input_time.tv_sec) * 1000L +
+                               (now.tv_nsec - last_input_time.tv_nsec) / 1000000L;
+                if (last_input_time.tv_sec == 0 || diff_ms > 500 || buf_len > 1)
+                        last_action = ACT_NONE;
+                last_input_time = now;
 
                 for (int i = 0; i < buf_len; i++) {
                         in = buf[i];
@@ -1095,10 +1102,11 @@ draw_line(int vertical, int horiz, unsigned char *ptr, int t_pos, int length)
 }
 
 /* insert new line		*/
-void 
+void
 insert_line(int disp)
 {
-        start_action(ACT_INSERT_LINE);
+        /* treat newlines like character inserts for undo grouping */
+        start_action(ACT_INSERT);
         int temp_pos;
         int temp_pos2;
 	unsigned char *temp;
