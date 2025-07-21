@@ -336,6 +336,7 @@ int file_op(int arg);
 void shell_op(void);
 void leave_op(void);
 void redraw(void);
+static void refresh_windows(void);
 int Blank_Line(struct text *test_line);
 void Format(void);
 void ee_init(void);
@@ -1281,6 +1282,18 @@ static void apply_snapshot(struct snapshot *snap)
         point = curr_line->line + position - 1;
         scr_pos = scr_horz;
         draw_screen();
+        refresh_windows();
+}
+
+static void refresh_windows(void)
+{
+        touchwin(text_win);
+        wrefresh(text_win);
+        if (info_window) {
+                touchwin(info_win);
+                wrefresh(info_win);
+        }
+        wrefresh(com_win);
 }
 
 /*
