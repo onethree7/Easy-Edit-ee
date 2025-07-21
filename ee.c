@@ -354,9 +354,18 @@ void strings_init(void);
 #undef P_
 static void start_action(enum action_type act)
 {
-    if (last_action != act)
+    if (last_action != ACT_NONE && last_action != act)
         push_undo_state();
     last_action = act;
+}
+
+static int is_text_input(int ch)
+{
+    if (ch == 9 || ch == 10 || ch == 13 || ch == 8 || ch == 127)
+        return 1;
+    if (ch >= 32 && ch < 127)
+        return 1;
+    return 0;
 }
 /*
  |	allocate space here for the strings that will be in the menu
@@ -653,11 +662,14 @@ main(int argc, char *argv[])
 		}
 
 		wrefresh(text_win);
-		in = wgetch(text_win);
-		if (in == -1)
-			exit(0);  /* without this exit ee will go into an 
-			             infinite loop if the network 
-			             session detaches */
+                in = wgetch(text_win);
+                if (is_text_input(in))
+                        push_undo_state();
+                last_action = ACT_NONE;
+                if (in == -1)
+                        exit(0);  /* without this exit ee will go into an
+                                     infinite loop if the network
+                                     session detaches */
 
 		resize_check();
 
