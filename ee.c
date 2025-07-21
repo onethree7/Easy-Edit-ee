@@ -203,6 +203,24 @@ WINDOW *text_win;
 WINDOW *help_win;
 WINDOW *info_win;
 
+/* ---- Undo/Redo support ---- */
+#define UNDO_DEPTH 10
+
+struct snapshot {
+    struct text *first;
+    struct text *curr;
+    int position;
+    int absolute_lin;
+    int scr_vert;
+    int scr_horz;
+    int horiz_offset;
+};
+
+static struct snapshot undo_stack[UNDO_DEPTH];
+static int undo_pos = 0;
+static struct snapshot redo_stack[UNDO_DEPTH];
+static int redo_pos = 0;
+
 
 /*
  |	The following structure allows menu items to be flexibly declared.
@@ -279,6 +297,9 @@ int search(int display_message);
 void search_prompt(void);
 void del_char(void);
 void undel_char(void);
+void undo_action(void);
+void redo_action(void);
+void push_undo_state(void);
 void del_word(void);
 void undel_word(void);
 void del_line(void);
@@ -585,8 +606,10 @@ main(int argc, char *argv[])
 		wprintw(com_win, "%s", no_file_string);
 		wrefresh(com_win);
 	}
-	else
-		check_fp();
+        else
+                check_fp();
+
+        push_undo_state();
 
 	clear_com_win = TRUE;
 
@@ -666,11 +689,12 @@ resiz_line(int factor, struct text *rline, int rpos)
 }
 
 /* insert character into line		*/
-void 
+void
 insert(int character)
 {
-	int counter;
-	int value;
+        push_undo_state();
+        int counter;
+        int value;
 	unsigned char *temp;	/* temporary pointer			*/
 	unsigned char *temp2;	/* temporary pointer			*/
 
@@ -751,11 +775,12 @@ insert(int character)
 }
 
 /* delete character		*/
-void 
+void
 delete(int disp)
 {
-	unsigned char *tp;
-	unsigned char *temp2;
+        push_undo_state();
+        unsigned char *tp;
+        unsigned char *temp2;
 	struct text *temp_buff;
 	int temp_vert;
 	int temp_pos;
@@ -1036,8 +1061,9 @@ draw_line(int vertical, int horiz, unsigned char *ptr, int t_pos, int length)
 void 
 insert_line(int disp)
 {
-	int temp_pos;
-	int temp_pos2;
+        push_undo_state();
+        int temp_pos;
+        int temp_pos2;
 	unsigned char *temp;
 	unsigned char *extra;
 	struct text *temp_nod;
@@ -1113,7 +1139,126 @@ insert_line(int disp)
 struct text *
 txtalloc(void)
 {
-	return((struct text *) malloc(sizeof( struct text)));
+        return((struct text *) malloc(sizeof( struct text)));
+}
+
+static void free_text_list(struct text *t)
+{
+        while (t != NULL)
+        {
+                struct text *n = t->next_line;
+                free(t->line);
+                free(t);
+                t = n;
+        }
+}
+
+static struct text *clone_text_list(struct text *src, struct text **out_curr,
+                                   struct text *orig_curr)
+{
+        struct text *head = NULL, *prev = NULL, *curr = NULL;
+        while (src != NULL)
+        {
+                struct text *node = txtalloc();
+                node->line = malloc(src->max_length);
+                memcpy(node->line, src->line, src->line_length + 1);
+                node->line_length = src->line_length;
+                node->max_length = src->max_length;
+                node->line_number = src->line_number;
+                node->prev_line = prev;
+                if (prev)
+                        prev->next_line = node;
+                else
+                        head = node;
+                if (src == orig_curr)
+                        curr = node;
+                prev = node;
+                src = src->next_line;
+        }
+        if (prev)
+                prev->next_line = NULL;
+        if (out_curr)
+                *out_curr = curr;
+        return head;
+}
+
+static struct snapshot take_snapshot(void)
+{
+        struct snapshot snap;
+        snap.first = clone_text_list(first_line, &snap.curr, curr_line);
+        snap.position = position;
+        snap.absolute_lin = absolute_lin;
+        snap.scr_vert = scr_vert;
+        snap.scr_horz = scr_horz;
+        snap.horiz_offset = horiz_offset;
+        return snap;
+}
+
+static void apply_snapshot(struct snapshot *snap)
+{
+        free_text_list(first_line);
+        first_line = snap->first;
+        curr_line = snap->curr;
+        position = snap->position;
+        absolute_lin = snap->absolute_lin;
+        scr_vert = snap->scr_vert;
+        scr_horz = snap->scr_horz;
+        horiz_offset = snap->horiz_offset;
+        point = curr_line->line + position - 1;
+        scr_pos = scr_horz;
+        draw_screen();
+}
+
+void push_undo_state(void)
+{
+        struct snapshot snap = take_snapshot();
+        if (undo_pos == UNDO_DEPTH)
+        {
+                free_text_list(undo_stack[0].first);
+                memmove(&undo_stack[0], &undo_stack[1],
+                        sizeof(struct snapshot) * (UNDO_DEPTH - 1));
+                undo_pos--;
+        }
+        undo_stack[undo_pos++] = snap;
+        while (redo_pos > 0)
+        {
+                redo_pos--;
+                free_text_list(redo_stack[redo_pos].first);
+        }
+}
+
+void undo_action(void)
+{
+        if (undo_pos == 0)
+                return;
+        struct snapshot curr = take_snapshot();
+        if (redo_pos == UNDO_DEPTH)
+        {
+                free_text_list(redo_stack[0].first);
+                memmove(&redo_stack[0], &redo_stack[1],
+                        sizeof(struct snapshot) * (UNDO_DEPTH - 1));
+                redo_pos--;
+        }
+        redo_stack[redo_pos++] = curr;
+        undo_pos--;
+        apply_snapshot(&undo_stack[undo_pos]);
+}
+
+void redo_action(void)
+{
+        if (redo_pos == 0)
+                return;
+        struct snapshot curr = take_snapshot();
+        if (undo_pos == UNDO_DEPTH)
+        {
+                free_text_list(undo_stack[0].first);
+                memmove(&undo_stack[0], &undo_stack[1],
+                        sizeof(struct snapshot) * (UNDO_DEPTH - 1));
+                undo_pos--;
+        }
+        undo_stack[undo_pos++] = curr;
+        redo_pos--;
+        apply_snapshot(&redo_stack[redo_pos]);
 }
 
 /* allocate space for file name list node */
@@ -1184,7 +1329,7 @@ control(void)
 	else if (in == 5)	/* control e	*/
 		search_prompt();
 	else if (in == 6)	/* control f	*/
-		undel_char();
+		redo_action();
 	else if (in == 7)	/* control g	*/
 		bol();
 	else if (in == 8)	/* control h	*/
@@ -1194,7 +1339,7 @@ control(void)
 	else if (in == 10)	/* control j	*/
 		insert_line(TRUE);
 	else if (in == 11)	/* control k	*/
-		del_char();
+		undo_action();
 	else if (in == 12)	/* control l	*/
 		left(TRUE);
 	else if (in == 13)	/* control m	*/
@@ -1249,7 +1394,7 @@ emacs_control(void)
 		command_prompt();
 	}
 	else if (in == 4)	/* control d	*/
-		del_char();
+		undo_action();
 	else if (in == 5)	/* control e	*/
 		eol();
 	else if (in == 6)	/* control f	*/
@@ -1261,7 +1406,7 @@ emacs_control(void)
 	else if (in == 9)	/* control i	*/
 		;
 	else if (in == 10)	/* control j	*/
-		undel_char();
+		redo_action();
 	else if (in == 11)	/* control k	*/
 		del_line();
 	else if (in == 12)	/* control l	*/
@@ -1543,7 +1688,7 @@ function_key(void)
 	else if (in == KEY_DL)
 		del_line();
 	else if (in == KEY_DC)
-		del_char();
+		undo_action();
 	else if (in == KEY_BACKSPACE)
 		delete(TRUE);
 	else if (in == KEY_IL)
@@ -1561,7 +1706,7 @@ function_key(void)
 			undel_line();
 		}
 		else
-			undel_char();
+			redo_action();
 	}
 	else if (in == KEY_F(3))
 	{
@@ -2690,51 +2835,23 @@ search_prompt(void)
 void 
 del_char(void)
 {
-	in = 8;  /* backspace */
-	if (position < curr_line->line_length)	/* if not end of line	*/
-	{
-		if ((ee_chinese) && (*point > 127) && 
-		    ((curr_line->line_length - position) >= 2))
-		{
-			point++;
-			position++;
-		}
-		position++;
-		point++;
-		scanline(point);
-		delete(TRUE);
-	}
-	else
-	{
-		right(TRUE);
-		delete(TRUE);
-	}
+undo_action();
 }
 
 /* undelete last deleted character	*/
 void 
 undel_char(void)
 {
-	if (d_char[0] == '\n')	/* insert line if last del_char deleted eol */
-		insert_line(TRUE);
-	else
-	{
-		in = d_char[0];
-		insert(in);
-		if (d_char[1] != '\0')
-		{
-			in = d_char[1];
-			insert(in);
-		}
-	}
+        redo_action();
 }
 
 /* delete word in front of cursor	*/
 void 
 del_word(void)
 {
-	int tposit;
-	int difference;
+        push_undo_state();
+        int tposit;
+        int difference;
 	unsigned char *d_word2;
 	unsigned char *d_word3;
 	unsigned char tmp_char[3];
@@ -2788,8 +2905,9 @@ del_word(void)
 void 
 undel_word(void)
 {
-	int temp;
-	int tposit;
+        push_undo_state();
+        int temp;
+        int tposit;
 	unsigned char *tmp_old_ptr;
 	unsigned char *tmp_space;
 	unsigned char *tmp_ptr;
@@ -2851,8 +2969,9 @@ undel_word(void)
 void 
 del_line(void)
 {
-	unsigned char *dl1;
-	unsigned char *dl2;
+        push_undo_state();
+        unsigned char *dl1;
+        unsigned char *dl2;
 	int tposit;
 
 	if (d_line != NULL)
@@ -2885,8 +3004,9 @@ del_line(void)
 void 
 undel_line(void)
 {
-	unsigned char *ud1;
-	unsigned char *ud2;
+        push_undo_state();
+        unsigned char *ud1;
+        unsigned char *ud2;
 	int tposit;
 
 	if (dlt_line->line_length == 0)
@@ -3989,7 +4109,7 @@ Format(void)
 		}
 		else
 			right(TRUE);
-		del_char();
+		undo_action();
 		if ((*point == ' ') || (*point == '\t'))
 			del_word();
 	}
@@ -4005,7 +4125,7 @@ Format(void)
 	while (position < curr_line->line_length)
 	{
 		if ((*point == ' ') && (*(point + 1) == ' '))
-			del_char();
+			undo_action();
 		else
 			right(TRUE);
 	}
@@ -4023,7 +4143,7 @@ Format(void)
 			insert(' ');
 			insert(' ');
 			while (*point == ' ')
-				del_char();
+				undo_action();
 		}
 		right(TRUE);
 	}
@@ -5098,10 +5218,10 @@ strings_init(void)
 	help_text[0] = catgetlocal( 35, "Control keys:                                                              "); 
 	help_text[1] = catgetlocal( 36, "^a ascii code           ^i tab                  ^r right                   ");
 	help_text[2] = catgetlocal( 37, "^b bottom of text       ^j newline              ^t top of text             ");
-	help_text[3] = catgetlocal( 38, "^c command              ^k delete char          ^u up                      ");
+	help_text[3] = catgetlocal( 38, "^c command              ^k undo          ^u up                      ");
 	help_text[4] = catgetlocal( 39, "^d down                 ^l left                 ^v undelete word           ");
 	help_text[5] = catgetlocal( 40, "^e search prompt        ^m newline              ^w delete word             ");
-	help_text[6] = catgetlocal( 41, "^f undelete char        ^n next page            ^x search                  ");
+	help_text[6] = catgetlocal( 41, "^f redo        ^n next page            ^x search                  ");
 	help_text[7] = catgetlocal( 42, "^g begin of line        ^o end of line          ^y delete line             ");
 	help_text[8] = catgetlocal( 43, "^h backspace            ^p prev page            ^z undelete line           ");
 	help_text[9] = catgetlocal( 44, "^[ (escape) menu        ESC-Enter: exit ee                                 ");
@@ -5121,7 +5241,7 @@ strings_init(void)
 	control_keys[1] = catgetlocal( 58, "^a ascii code     ^x search         ^z undelete line  ^d down   ^n next page  ");
 	control_keys[2] = catgetlocal( 59, "^b bottom of text ^g begin of line  ^w delete word    ^l left                 ");
 	control_keys[3] = catgetlocal( 60, "^t top of text    ^o end of line    ^v undelete word  ^r right                ");
-	control_keys[4] = catgetlocal( 61, "^c command        ^k delete char    ^f undelete char      ESC-Enter: exit ee  ");
+	control_keys[4] = catgetlocal( 61, "^c command        ^k undo    ^f redo      ESC-Enter: exit ee  ");
 	command_strings[0] = catgetlocal( 62, "help : get help info  |file  : print file name         |line : print line # ");
 	command_strings[1] = catgetlocal( 63, "read : read a file    |char  : ascii code of char      |0-9 : go to line \"#\"");
 	command_strings[2] = catgetlocal( 64, "write: write a file   |case  : case sensitive search   |exit : leave and save ");
@@ -5213,7 +5333,7 @@ strings_init(void)
 	emacs_help_text[1] = catgetlocal( 146, "^a beginning of line    ^i tab                  ^r restore word            ");
 	emacs_help_text[2] = catgetlocal( 147, "^b back 1 char          ^j undel char           ^t top of text             ");
 	emacs_help_text[3] = catgetlocal( 148, "^c command              ^k delete line          ^u bottom of text          ");
-	emacs_help_text[4] = catgetlocal( 149, "^d delete char          ^l undelete line        ^v next page               ");
+	emacs_help_text[4] = catgetlocal( 149, "^d undo          ^l undelete line        ^v next page               ");
 	emacs_help_text[5] = catgetlocal( 150, "^e end of line          ^m newline              ^w delete word             ");
 	emacs_help_text[6] = catgetlocal( 151, "^f forward 1 char       ^n next line            ^x search                  ");
 	emacs_help_text[7] = catgetlocal( 152, "^g go back 1 page       ^o ascii char insert    ^y search prompt           ");
@@ -5235,7 +5355,7 @@ strings_init(void)
 	emacs_control_keys[1] = catgetlocal( 155, "^o ascii code    ^x search        ^l undelete line ^n next li     ^v next page");
 	emacs_control_keys[2] = catgetlocal( 156, "^u end of file   ^a begin of line ^w delete word   ^b back 1 char ^z next word");
 	emacs_control_keys[3] = catgetlocal( 157, "^t top of text   ^e end of line   ^r restore word  ^f forward char            ");
-	emacs_control_keys[4] = catgetlocal( 158, "^c command       ^d delete char   ^j undelete char              ESC-Enter: exit");
+	emacs_control_keys[4] = catgetlocal( 158, "^c command       ^d undo   ^j redo              ESC-Enter: exit");
 	EMACS_string = catgetlocal( 159, "EMACS");
 	NOEMACS_string = catgetlocal( 160, "NOEMACS");
 	usage4 = catgetlocal( 161, "       +#   put cursor at line #\n");
