@@ -81,6 +81,46 @@ char *version = "@(#) ee, version "  EE_VERSION  " $Revision: 1.104 $";
 #include <stdarg.h>
 #include <sys/wait.h>
 
+/* ---- Undo support ---- */
+typedef struct UndoOperation {
+    int type;                    /* edit operation type                */
+    int line;                    /* line number of edit                */
+    int pos;                     /* position within the line           */
+    char *text;                  /* text affected by the edit          */
+    struct UndoOperation *next;  /* next item in stack                 */
+} UndoOperation;
+
+/* operation types for UndoOperation */
+#define UNDO_INSERT 1
+#define UNDO_DELETE 2
+#define UNDO_REPLACE 3
+
+/* global undo/redo stacks */
+static UndoOperation *undo_stack = NULL;
+static UndoOperation *redo_stack = NULL;
+
+static void push_undo(UndoOperation **stack, int type, int line, int pos,
+                      const char *text)
+{
+    UndoOperation *op = malloc(sizeof(UndoOperation));
+    if (!op)
+        return;
+    op->type = type;
+    op->line = line;
+    op->pos = pos;
+    op->text = text ? strdup(text) : NULL;
+    op->next = *stack;
+    *stack = op;
+}
+
+static UndoOperation *pop_undo(UndoOperation **stack)
+{
+    UndoOperation *op = *stack;
+    if (op)
+        *stack = op->next;
+    return op;
+}
+
 /* ---- Internationalization fallback ---- */
 #ifndef NO_CATGETS
 #include <nl_types.h>
@@ -228,6 +268,21 @@ WINDOW *text_win;
 WINDOW *help_win;
 WINDOW *info_win;
 
+typedef enum {
+        UOP_INSERT,
+        UOP_DELETE
+} UndoType;
+
+typedef struct UndoOperation {
+        UndoType type;
+        struct text *line;
+        int position;
+        unsigned char *data;
+} UndoOperation;
+
+static UndoOperation undo_stack[100];
+static int undo_top = 0;
+
 
 /*
  |	The following structure allows menu items to be flexibly declared.
@@ -305,8 +360,8 @@ void search_prompt(void);
 void del_char(void);
 void del_word(void);
 void del_line(void);
-void undo(void);
-void redo(void);
+void undel_line(void);
+void push_undo(UndoType type, struct text *line, int position, const unsigned char *data);
 void adv_word(void);
 void move_rel(int direction, int lines);
 void eol(void);
@@ -672,7 +727,22 @@ main(int argc, char *argv[])
 				control();
 		}
 	}
-	return(0);
+       return(0);
+}
+
+void
+push_undo(UndoType type, struct text *line, int position, const unsigned char *data)
+{
+        if (undo_top >= 100)
+                return;
+        undo_stack[undo_top].type = type;
+        undo_stack[undo_top].line = line;
+        undo_stack[undo_top].position = position;
+        if (data)
+                undo_stack[undo_top].data = strdup((char *)data);
+        else
+                undo_stack[undo_top].data = NULL;
+        undo_top++;
 }
 
 /* resize the line to length + factor*/
@@ -771,7 +841,8 @@ insert(int character)
 	else if ((character != ' ') && (character != '\t'))
 		formatted = FALSE;
 
-	draw_line(scr_vert, scr_horz, point, position, curr_line->line_length);
+       draw_line(scr_vert, scr_horz, point, position, curr_line->line_length);
+       push_undo(UOP_INSERT, curr_line, position - 1, (unsigned char *)&character);
 }
 
 /* delete character		*/
