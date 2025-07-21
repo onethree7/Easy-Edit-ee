@@ -40,6 +40,8 @@ See the built-in help (`help` command or `^c`) for keybindings.
 - Minimal dependencies (`ncurses` only)
 - Portable codebase for basic editing needs
 - Retains much of the classic BSD behavior and keymap
+- Expanded undo/redo history (up to 1000 steps)
+- Smarter undo grouping across consecutive edits
 
 ## Porting Notes
 
