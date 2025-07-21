@@ -204,7 +204,7 @@ WINDOW *help_win;
 WINDOW *info_win;
 
 /* ---- Undo/Redo support ---- */
-#define UNDO_DEPTH 10
+#define UNDO_DEPTH 200
 
 struct snapshot {
     struct text *first;
@@ -220,6 +220,19 @@ static struct snapshot undo_stack[UNDO_DEPTH];
 static int undo_pos = 0;
 static struct snapshot redo_stack[UNDO_DEPTH];
 static int redo_pos = 0;
+
+enum action_type {
+    ACT_NONE = 0,
+    ACT_INSERT,
+    ACT_DELETE,
+    ACT_INSERT_LINE,
+    ACT_DEL_WORD,
+    ACT_UNDEL_WORD,
+    ACT_DEL_LINE,
+    ACT_UNDEL_LINE
+};
+
+static enum action_type last_action = ACT_NONE;
 
 
 /*
@@ -339,6 +352,12 @@ int unique_test(char *string, char *list[]);
 void strings_init(void);
 
 #undef P_
+static void start_action(enum action_type act)
+{
+    if (last_action != act)
+        push_undo_state();
+    last_action = act;
+}
 /*
  |	allocate space here for the strings that will be in the menu
  */
@@ -653,9 +672,11 @@ main(int argc, char *argv[])
 			}
 			wrefresh(com_win);
 		}
-
-		if (in > 255)
-			function_key();
+                if (in > 255)
+                {
+                        last_action = ACT_NONE;
+                        function_key();
+                }
 		else if ((in == '\10') || (in == 127))
 		{
 			in = 8;		/* make sure key is set to backspace */
@@ -664,7 +685,8 @@ main(int argc, char *argv[])
 		else if ((in > 31) || (in == 9))
 			insert(in);
 		else if ((in >= 0) && (in <= 31))
-		{
+                {
+                        last_action = ACT_NONE;
 			if (emacs_keys_mode)
 				emacs_control();
 			else
@@ -692,7 +714,7 @@ resiz_line(int factor, struct text *rline, int rpos)
 void
 insert(int character)
 {
-        push_undo_state();
+        start_action(ACT_INSERT);
         int counter;
         int value;
 	unsigned char *temp;	/* temporary pointer			*/
@@ -778,7 +800,7 @@ insert(int character)
 void
 delete(int disp)
 {
-        push_undo_state();
+        start_action(ACT_DELETE);
         unsigned char *tp;
         unsigned char *temp2;
 	struct text *temp_buff;
@@ -1058,10 +1080,10 @@ draw_line(int vertical, int horiz, unsigned char *ptr, int t_pos, int length)
 }
 
 /* insert new line		*/
-void 
+void
 insert_line(int disp)
 {
-        push_undo_state();
+        start_action(ACT_INSERT_LINE);
         int temp_pos;
         int temp_pos2;
 	unsigned char *temp;
@@ -1229,6 +1251,7 @@ void push_undo_state(void)
 
 void undo_action(void)
 {
+        last_action = ACT_NONE;
         if (undo_pos == 0)
                 return;
         struct snapshot curr = take_snapshot();
@@ -1246,6 +1269,7 @@ void undo_action(void)
 
 void redo_action(void)
 {
+        last_action = ACT_NONE;
         if (redo_pos == 0)
                 return;
         struct snapshot curr = take_snapshot();
@@ -2846,10 +2870,10 @@ undel_char(void)
 }
 
 /* delete word in front of cursor	*/
-void 
+void
 del_word(void)
 {
-        push_undo_state();
+        start_action(ACT_DEL_WORD);
         int tposit;
         int difference;
 	unsigned char *d_word2;
@@ -2902,10 +2926,10 @@ del_word(void)
 }
 
 /* undelete last deleted word		*/
-void 
+void
 undel_word(void)
 {
-        push_undo_state();
+        start_action(ACT_UNDEL_WORD);
         int temp;
         int tposit;
 	unsigned char *tmp_old_ptr;
@@ -2966,10 +2990,10 @@ undel_word(void)
 }
 
 /* delete from cursor to end of line	*/
-void 
+void
 del_line(void)
 {
-        push_undo_state();
+        start_action(ACT_DEL_LINE);
         unsigned char *dl1;
         unsigned char *dl2;
 	int tposit;
@@ -3001,10 +3025,10 @@ del_line(void)
 }
 
 /* undelete last deleted line		*/
-void 
+void
 undel_line(void)
 {
-        push_undo_state();
+        start_action(ACT_UNDEL_LINE);
         unsigned char *ud1;
         unsigned char *ud2;
 	int tposit;
