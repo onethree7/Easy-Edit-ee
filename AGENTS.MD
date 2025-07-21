@@ -32,6 +32,7 @@ This document collects ideas and instructions for implementing future improvemen
    - Increase the undo stack depth and make it configurable.
    - Consider persisting undo history per file during a session.
    - *Configurable undo amount.*
+   - Initial pending-input grouping implemented.
 
 6. **Color Themes**
    - Use full ncurses color support (including 256-color) and allow theme selection.
