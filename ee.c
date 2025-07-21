@@ -81,46 +81,6 @@ char *version = "@(#) ee, version "  EE_VERSION  " $Revision: 1.104 $";
 #include <stdarg.h>
 #include <sys/wait.h>
 
-/* ---- Undo support ---- */
-typedef struct UndoOperation {
-    int type;                    /* edit operation type                */
-    int line;                    /* line number of edit                */
-    int pos;                     /* position within the line           */
-    char *text;                  /* text affected by the edit          */
-    struct UndoOperation *next;  /* next item in stack                 */
-} UndoOperation;
-
-/* operation types for UndoOperation */
-#define UNDO_INSERT 1
-#define UNDO_DELETE 2
-#define UNDO_REPLACE 3
-
-/* global undo/redo stacks */
-static UndoOperation *undo_stack = NULL;
-static UndoOperation *redo_stack = NULL;
-
-static void push_undo(UndoOperation **stack, int type, int line, int pos,
-                      const char *text)
-{
-    UndoOperation *op = malloc(sizeof(UndoOperation));
-    if (!op)
-        return;
-    op->type = type;
-    op->line = line;
-    op->pos = pos;
-    op->text = text ? strdup(text) : NULL;
-    op->next = *stack;
-    *stack = op;
-}
-
-static UndoOperation *pop_undo(UndoOperation **stack)
-{
-    UndoOperation *op = *stack;
-    if (op)
-        *stack = op->next;
-    return op;
-}
-
 /* ---- Internationalization fallback ---- */
 #ifndef NO_CATGETS
 #include <nl_types.h>
@@ -231,31 +191,6 @@ int in;				/* input character			*/
 
 FILE *temp_fp;			/* temporary file pointer		*/
 FILE *bit_bucket;		/* file pointer to /dev/null		*/
-/* --- Undo/Redo structures --------------------------------------- */
-typedef enum {
-    OP_DELETE_CHAR,
-    OP_DELETE_WORD,
-    OP_DELETE_LINE
-} op_type_t;
-
-struct UndoOperation {
-    op_type_t type;
-    struct text *line;
-    int position;
-    unsigned char *data;
-    struct UndoOperation *next;
-};
-
-static struct UndoOperation *undo_stack = NULL;
-static struct UndoOperation *redo_stack = NULL;
-
-static void push_undo(struct UndoOperation *op) { op->next = undo_stack; undo_stack = op; }
-static struct UndoOperation *pop_undo(void) { struct UndoOperation *op = undo_stack; if(op) undo_stack = op->next; return op; }
-static void push_redo(struct UndoOperation *op) { op->next = redo_stack; redo_stack = op; }
-static struct UndoOperation *pop_redo(void) { struct UndoOperation *op = redo_stack; if(op) redo_stack = op->next; return op; }
-static void clear_stack(struct UndoOperation **stack) { while(*stack){ struct UndoOperation *t=*stack; *stack=t->next; free(t->data); free(t); } }
-
-
 
 char *table[] = { 
 	"^@", "^A", "^B", "^C", "^D", "^E", "^F", "^G", "^H", "\t", "^J", 
@@ -267,21 +202,6 @@ WINDOW *com_win;
 WINDOW *text_win;
 WINDOW *help_win;
 WINDOW *info_win;
-
-typedef enum {
-        UOP_INSERT,
-        UOP_DELETE
-} UndoType;
-
-typedef struct UndoOperation {
-        UndoType type;
-        struct text *line;
-        int position;
-        unsigned char *data;
-} UndoOperation;
-
-static UndoOperation undo_stack[100];
-static int undo_top = 0;
 
 
 /*
@@ -358,10 +278,11 @@ int write_file(char *file_name, int warn_if_exists);
 int search(int display_message);
 void search_prompt(void);
 void del_char(void);
+void undel_char(void);
 void del_word(void);
+void undel_word(void);
 void del_line(void);
 void undel_line(void);
-void push_undo(UndoType type, struct text *line, int position, const unsigned char *data);
 void adv_word(void);
 void move_rel(int direction, int lines);
 void eol(void);
@@ -727,22 +648,7 @@ main(int argc, char *argv[])
 				control();
 		}
 	}
-       return(0);
-}
-
-void
-push_undo(UndoType type, struct text *line, int position, const unsigned char *data)
-{
-        if (undo_top >= 100)
-                return;
-        undo_stack[undo_top].type = type;
-        undo_stack[undo_top].line = line;
-        undo_stack[undo_top].position = position;
-        if (data)
-                undo_stack[undo_top].data = strdup((char *)data);
-        else
-                undo_stack[undo_top].data = NULL;
-        undo_top++;
+	return(0);
 }
 
 /* resize the line to length + factor*/
@@ -841,8 +747,7 @@ insert(int character)
 	else if ((character != ' ') && (character != '\t'))
 		formatted = FALSE;
 
-       draw_line(scr_vert, scr_horz, point, position, curr_line->line_length);
-       push_undo(UOP_INSERT, curr_line, position - 1, (unsigned char *)&character);
+	draw_line(scr_vert, scr_horz, point, position, curr_line->line_length);
 }
 
 /* delete character		*/
@@ -1279,7 +1184,7 @@ control(void)
 	else if (in == 5)	/* control e	*/
 		search_prompt();
 	else if (in == 6)	/* control f	*/
-		undo();
+		undel_char();
 	else if (in == 7)	/* control g	*/
 		bol();
 	else if (in == 8)	/* control h	*/
@@ -1311,7 +1216,7 @@ control(void)
 	else if (in == 21)	/* control u	*/
 		up();
 	else if (in == 22)	/* control v	*/
-		redo();
+		undel_word();
 	else if (in == 23)	/* control w	*/
 		del_word();
 	else if (in == 24)	/* control x	*/
@@ -1319,7 +1224,7 @@ control(void)
 	else if (in == 25)	/* control y	*/
 		del_line();
 	else if (in == 26)	/* control z	*/
-		undo();
+		undel_line();
 	else if (in == 27)	/* control [ (escape)	*/
 	{
 		menu_op(main_menu);
@@ -1356,11 +1261,11 @@ emacs_control(void)
 	else if (in == 9)	/* control i	*/
 		;
 	else if (in == 10)	/* control j	*/
-		undo();
+		undel_char();
 	else if (in == 11)	/* control k	*/
 		del_line();
 	else if (in == 12)	/* control l	*/
-		undo();
+		undel_line();
 	else if (in == 13)	/* control m	*/
 		insert_line(TRUE);
 	else if (in == 14)	/* control n	*/
@@ -1381,7 +1286,7 @@ emacs_control(void)
 	else if (in == 17)	/* control q	*/
 		;
 	else if (in == 18)	/* control r	*/
-		redo();
+		undel_word();
 	else if (in == 19)	/* control s	*/
 		;
 	else if (in == 20)	/* control t	*/
@@ -1653,17 +1558,17 @@ function_key(void)
 		if (gold)
 		{
 			gold = FALSE;
-			undo();
+			undel_line();
 		}
 		else
-			undo();
+			undel_char();
 	}
 	else if (in == KEY_F(3))
 	{
 		if (gold)
 		{
 			gold = FALSE;
-			redo();
+			undel_word();
 		}
 		else
 			del_word();
@@ -2799,22 +2704,32 @@ del_char(void)
 		scanline(point);
 		delete(TRUE);
 	}
-        else
-        {
-                right(TRUE);
-                delete(TRUE);
-        }
-        {
-                struct UndoOperation *op = malloc(sizeof(struct UndoOperation));
-                op->type = OP_DELETE_CHAR;
-                op->line = curr_line;
-                op->position = position;
-                op->data = strdup((char *)d_char);
-                clear_stack(&redo_stack);
-                push_undo(op);
-        }
+	else
+	{
+		right(TRUE);
+		delete(TRUE);
+	}
 }
 
+/* undelete last deleted character	*/
+void 
+undel_char(void)
+{
+	if (d_char[0] == '\n')	/* insert line if last del_char deleted eol */
+		insert_line(TRUE);
+	else
+	{
+		in = d_char[0];
+		insert(in);
+		if (d_char[1] != '\0')
+		{
+			in = d_char[1];
+			insert(in);
+		}
+	}
+}
+
+/* delete word in front of cursor	*/
 void 
 del_word(void)
 {
@@ -2865,19 +2780,74 @@ del_word(void)
 	d_char[0] = tmp_char[0];
 	d_char[1] = tmp_char[1];
 	d_char[2] = tmp_char[2];
-        {
-                struct UndoOperation *op = malloc(sizeof(struct UndoOperation));
-                op->type = OP_DELETE_WORD;
-                op->line = curr_line;
-                op->position = position;
-                op->data = strdup((char *)d_word);
-                clear_stack(&redo_stack);
-                push_undo(op);
-        }
 	text_changes = TRUE;
 	formatted = FALSE;
 }
 
+/* undelete last deleted word		*/
+void 
+undel_word(void)
+{
+	int temp;
+	int tposit;
+	unsigned char *tmp_old_ptr;
+	unsigned char *tmp_space;
+	unsigned char *tmp_ptr;
+	unsigned char *d_word_ptr;
+
+	/*
+	 |	resize line to handle undeleted word
+	 */
+	if ((curr_line->max_length - (curr_line->line_length + d_wrd_len)) < 5)
+		point = resiz_line(d_wrd_len, curr_line, position);
+	tmp_ptr = tmp_space = malloc(curr_line->line_length + d_wrd_len);
+	d_word_ptr = d_word;
+	temp = 1;
+	/*
+	 |	copy d_word contents into temp space
+	 */
+	while (temp <= d_wrd_len)
+	{
+		temp++;
+		*tmp_ptr = *d_word_ptr;
+		tmp_ptr++;
+		d_word_ptr++;
+	}
+	tmp_old_ptr = point;
+	tposit = position;
+	/*
+	 |	copy contents of line from curent position to eol into 
+	 |	temp space
+	 */
+	while (tposit < curr_line->line_length)
+	{
+		temp++;
+		tposit++;
+		*tmp_ptr = *tmp_old_ptr;
+		tmp_ptr++;
+		tmp_old_ptr++;
+	}
+	curr_line->line_length += d_wrd_len;
+	tmp_old_ptr = point;
+	*tmp_ptr = '\0';
+	tmp_ptr = tmp_space;
+	tposit = 1;
+	/*
+	 |	now copy contents from temp space back to original line
+	 */
+	while (tposit < temp)
+	{
+		tposit++;
+		*tmp_old_ptr = *tmp_ptr;
+		tmp_ptr++;
+		tmp_old_ptr++;
+	}
+	*tmp_old_ptr = '\0';
+	free(tmp_space);
+	draw_line(scr_vert, scr_horz, point, position, curr_line->line_length);
+}
+
+/* delete from cursor to end of line	*/
 void 
 del_line(void)
 {
@@ -2901,15 +2871,6 @@ del_line(void)
 	dlt_line->line_length = 1 + tposit - position;
 	*dl1 = '\0';
 	*point = '\0';
-        {
-                struct UndoOperation *op = malloc(sizeof(struct UndoOperation));
-                op->type = OP_DELETE_LINE;
-                op->line = curr_line;
-                op->position = position;
-                op->data = strdup((char *)d_line);
-                clear_stack(&redo_stack);
-                push_undo(op);
-        }
 	curr_line->line_length = position;
 	wclrtoeol(text_win);
 	if (curr_line->next_line != NULL)
@@ -2920,6 +2881,36 @@ del_line(void)
 	text_changes = TRUE;
 }
 
+/* undelete last deleted line		*/
+void 
+undel_line(void)
+{
+	unsigned char *ud1;
+	unsigned char *ud2;
+	int tposit;
+
+	if (dlt_line->line_length == 0)
+		return;
+
+	insert_line(TRUE);
+	left(TRUE);
+	point = resiz_line(dlt_line->line_length, curr_line, position);
+	curr_line->line_length += dlt_line->line_length - 1;
+	ud1 = point;
+	ud2 = d_line;
+	tposit = 1;
+	while (tposit < dlt_line->line_length)
+	{
+		tposit++;
+		*ud1 = *ud2;
+		ud1++;
+		ud2++;
+	}
+	*ud1 = '\0';
+	draw_line(scr_vert, scr_horz,point,position,curr_line->line_length);
+}
+
+/* advance to next word		*/
 void 
 adv_word(void)
 {
@@ -4635,7 +4626,7 @@ Auto_Format(void)
 			 |   go to end of previous line
 			 */
 			left(TRUE);
-			undo();
+			undel_word();
 			eol();
 			/*
 			 |   make sure there's a space at the end of the line
@@ -4666,7 +4657,7 @@ Auto_Format(void)
 					adv_line();
 				if ((*point == ' ') || (*point == '\t'))
 					adv_word();
-				undo();
+				undel_word();
 				not_blank = TRUE;
 				if (position != 1)
 					bol();
@@ -5108,11 +5099,11 @@ strings_init(void)
 	help_text[1] = catgetlocal( 36, "^a ascii code           ^i tab                  ^r right                   ");
 	help_text[2] = catgetlocal( 37, "^b bottom of text       ^j newline              ^t top of text             ");
 	help_text[3] = catgetlocal( 38, "^c command              ^k delete char          ^u up                      ");
-	help_text[4] = catgetlocal( 39, "^d down                 ^l left                 ^v redo           ");
+	help_text[4] = catgetlocal( 39, "^d down                 ^l left                 ^v undelete word           ");
 	help_text[5] = catgetlocal( 40, "^e search prompt        ^m newline              ^w delete word             ");
-	help_text[6] = catgetlocal( 41, "^f undo        ^n next page            ^x search                  ");
+	help_text[6] = catgetlocal( 41, "^f undelete char        ^n next page            ^x search                  ");
 	help_text[7] = catgetlocal( 42, "^g begin of line        ^o end of line          ^y delete line             ");
-	help_text[8] = catgetlocal( 43, "^h backspace            ^p prev page            ^z undo           ");
+	help_text[8] = catgetlocal( 43, "^h backspace            ^p prev page            ^z undelete line           ");
 	help_text[9] = catgetlocal( 44, "^[ (escape) menu        ESC-Enter: exit ee                                 ");
 	help_text[10] = catgetlocal( 45, "                                                                           ");
 	help_text[11] = catgetlocal( 46, "Commands:                                                                  ");
@@ -5127,10 +5118,10 @@ strings_init(void)
 	help_text[20] = catgetlocal( 55, "  ee [+#] [-i] [-e] [-h] [file(s)]                                            ");
 	help_text[21] = catgetlocal( 56, "+# :go to line #  -i :no info window  -e : don't expand tabs  -h :no highlight");
 	control_keys[0] = catgetlocal( 57, "^[ (escape) menu  ^e search prompt  ^y delete line    ^u up     ^p prev page  ");
-	control_keys[1] = catgetlocal( 58, "^a ascii code     ^x search         ^z undo  ^d down   ^n next page  ");
+	control_keys[1] = catgetlocal( 58, "^a ascii code     ^x search         ^z undelete line  ^d down   ^n next page  ");
 	control_keys[2] = catgetlocal( 59, "^b bottom of text ^g begin of line  ^w delete word    ^l left                 ");
-	control_keys[3] = catgetlocal( 60, "^t top of text    ^o end of line    ^v redo  ^r right                ");
-	control_keys[4] = catgetlocal( 61, "^c command        ^k delete char    ^f undo      ESC-Enter: exit ee  ");
+	control_keys[3] = catgetlocal( 60, "^t top of text    ^o end of line    ^v undelete word  ^r right                ");
+	control_keys[4] = catgetlocal( 61, "^c command        ^k delete char    ^f undelete char      ESC-Enter: exit ee  ");
 	command_strings[0] = catgetlocal( 62, "help : get help info  |file  : print file name         |line : print line # ");
 	command_strings[1] = catgetlocal( 63, "read : read a file    |char  : ascii code of char      |0-9 : go to line \"#\"");
 	command_strings[2] = catgetlocal( 64, "write: write a file   |case  : case sensitive search   |exit : leave and save ");
@@ -5219,10 +5210,10 @@ strings_init(void)
 	 */
 	mode_strings[7] = catgetlocal( 145, "emacs key bindings   ");
 	emacs_help_text[0] = help_text[0];
-	emacs_help_text[1] = catgetlocal( 146, "^a beginning of line    ^i tab                  ^r redo            ");
-	emacs_help_text[2] = catgetlocal( 147, "^b back 1 char          ^j undo           ^t top of text             ");
+	emacs_help_text[1] = catgetlocal( 146, "^a beginning of line    ^i tab                  ^r restore word            ");
+	emacs_help_text[2] = catgetlocal( 147, "^b back 1 char          ^j undel char           ^t top of text             ");
 	emacs_help_text[3] = catgetlocal( 148, "^c command              ^k delete line          ^u bottom of text          ");
-	emacs_help_text[4] = catgetlocal( 149, "^d delete char          ^l undo        ^v next page               ");
+	emacs_help_text[4] = catgetlocal( 149, "^d delete char          ^l undelete line        ^v next page               ");
 	emacs_help_text[5] = catgetlocal( 150, "^e end of line          ^m newline              ^w delete word             ");
 	emacs_help_text[6] = catgetlocal( 151, "^f forward 1 char       ^n next line            ^x search                  ");
 	emacs_help_text[7] = catgetlocal( 152, "^g go back 1 page       ^o ascii char insert    ^y search prompt           ");
@@ -5241,10 +5232,10 @@ strings_init(void)
 	emacs_help_text[20] = help_text[20];
 	emacs_help_text[21] = help_text[21];
 	emacs_control_keys[0] = catgetlocal( 154, "^[ (escape) menu ^y search prompt ^k delete line   ^p prev li     ^g prev page");
-	emacs_control_keys[1] = catgetlocal( 155, "^o ascii code    ^x search       ^l undo ^n next li     ^v next page");
+	emacs_control_keys[1] = catgetlocal( 155, "^o ascii code    ^x search        ^l undelete line ^n next li     ^v next page");
 	emacs_control_keys[2] = catgetlocal( 156, "^u end of file   ^a begin of line ^w delete word   ^b back 1 char ^z next word");
-	emacs_control_keys[3] = catgetlocal( 157, "^t top of text   ^e end of line   ^r redo  ^f forward char            ");
-	emacs_control_keys[4] = catgetlocal( 158, "^c command       ^d delete char   ^j undo              ESC-Enter: exit");
+	emacs_control_keys[3] = catgetlocal( 157, "^t top of text   ^e end of line   ^r restore word  ^f forward char            ");
+	emacs_control_keys[4] = catgetlocal( 158, "^c command       ^d delete char   ^j undelete char              ESC-Enter: exit");
 	EMACS_string = catgetlocal( 159, "EMACS");
 	NOEMACS_string = catgetlocal( 160, "NOEMACS");
 	usage4 = catgetlocal( 161, "       +#   put cursor at line #\n");
@@ -5331,72 +5322,4 @@ strings_init(void)
 	catclose(catalog);
 #endif /* NO_CATGETS */
 }
-
-
-/* undo last operation */
-void undo(void)
-{
-    struct UndoOperation *op = pop_undo();
-    if (!op)
-        return;
-    clear_stack(&redo_stack); /* push inverse below */
-    switch (op->type) {
-    case OP_DELETE_CHAR:
-        curr_line = op->line;
-        point = curr_line->line + op->position - 1;
-        position = op->position;
-        for (int i=0; op->data[i]; i++)
-            insert(op->data[i]);
-        break;
-    case OP_DELETE_WORD:
-        curr_line = op->line;
-        point = curr_line->line + op->position - 1;
-        position = op->position;
-        for (int i=0; op->data[i]; i++)
-            insert(op->data[i]);
-        break;
-    case OP_DELETE_LINE:
-        curr_line = op->line;
-        point = curr_line->line;
-        position = 1;
-        insert_line(TRUE);
-        curr_line->line_length = 1;
-        for (int i=0; op->data[i]; i++) {
-            in = op->data[i];
-            insert(in);
-        }
-        break;
-    }
-    push_redo(op);
-}
-
-/* redo last undone operation */
-void redo(void)
-{
-    struct UndoOperation *op = pop_redo();
-    if (!op)
-        return;
-    switch (op->type) {
-    case OP_DELETE_CHAR:
-        curr_line = op->line;
-        point = curr_line->line + op->position - 1;
-        position = op->position;
-        delete(TRUE);
-        break;
-    case OP_DELETE_WORD:
-        curr_line = op->line;
-        point = curr_line->line + op->position - 1;
-        position = op->position;
-        del_word();
-        break;
-    case OP_DELETE_LINE:
-        curr_line = op->line;
-        point = curr_line->line;
-        position = 1;
-        del_line();
-        break;
-    }
-    push_undo(op);
-}
-
 
