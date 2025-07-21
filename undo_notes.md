@@ -1,7 +1,7 @@
 # Undo Framework Notes
 
-- Read all available characters after the first `wgetch()` call to detect paste
-  sequences.
+- Input is gathered through `collect_input_chunk()` which waits 30 ms for more
+  characters so paste sequences arrive as one block.
 - Reset `last_action` once per collected chunk so snapshots cover the whole
   paste or single key.
 - Newline characters are handled by `insert_line()` without clearing

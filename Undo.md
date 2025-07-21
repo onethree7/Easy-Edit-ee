@@ -34,9 +34,10 @@ pasted at once.
 
 ## Implementation Notes
 
-During input handling the editor reads all buffered characters after the first
-`wgetch()` call. This groups pasted text into a single array processed in one
-loop. A timestamp check resets `last_action` if more than 500ms have elapsed
-since the previous input, ensuring typed characters merge into larger chunks
-while pastes are kept intact. `start_action()` then stores only one snapshot for
-the entire group of characters.
+During input handling `collect_input_chunk()` gathers pending characters and
+waits briefly (30 ms) for more to arrive. This ensures large paste operations
+arrive as one array before processing begins. A timestamp check resets
+`last_action` and clears the chunk flag when more than 500 ms have elapsed since
+the previous input, starting a new undo group. `start_action()` takes a snapshot
+the first time it is called within a chunk so the whole block can be undone with
+one command.

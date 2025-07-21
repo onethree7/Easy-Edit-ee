@@ -7,4 +7,6 @@ This document tracks ongoing development of undo grouping. Goals and notes:
 - Continue evaluating edge cases around function keys and command sequences.
 - Newlines are now treated as text input in the main loop so large pastes
   revert in one step.
+- `collect_input_chunk()` waits briefly to ensure pasted data is gathered as one
+  chunk before any snapshot is taken.
 

@@ -353,11 +353,48 @@ int unique_test(char *string, char *list[]);
 void strings_init(void);
 
 #undef P_
+/*
+ * Begin tracking a modifying action. The first call after an input
+ * chunk starts saves a snapshot so the entire chunk can be undone at
+ * once. Subsequent calls in the same chunk simply update the action
+ * type so mixed inserts and deletes still share one snapshot.
+ */
+static int chunk_saved = 1;
 static void start_action(enum action_type act)
 {
-    if (last_action != act)
+    if (!chunk_saved) {
         push_undo_state();
+        chunk_saved = 1;
+    }
     last_action = act;
+}
+
+/*
+ * Collect as many queued characters as possible, waiting briefly for
+ * additional input so pasted text arrives in one array.
+ */
+static int collect_input_chunk(int *buf, int max)
+{
+    int len = 0;
+    int ch = wgetch(text_win);
+    if (ch == -1)
+        exit(0);
+    buf[len++] = ch;
+
+    nodelay(text_win, TRUE);
+    struct timespec delay = {0, 30000000}; /* 30ms */
+    while (len < max) {
+        ch = wgetch(text_win);
+        if (ch == ERR) {
+            nanosleep(&delay, NULL);
+            ch = wgetch(text_win);
+            if (ch == ERR)
+                break;
+        }
+        buf[len++] = ch;
+    }
+    nodelay(text_win, FALSE);
+    return len;
 }
 /*
  |	allocate space here for the strings that will be in the menu
@@ -656,19 +693,7 @@ main(int argc, char *argv[])
                 wrefresh(text_win);
 
                 int buf[4096];
-                int buf_len = 0;
-
-                in = wgetch(text_win);
-                if (in == -1)
-                        exit(0);  /* without this exit ee will go into an
-                                     infinite loop if the network
-                                     session detaches */
-
-                buf[buf_len++] = in;
-                nodelay(text_win, TRUE);
-                while (buf_len < 4096 && (in = wgetch(text_win)) != ERR)
-                        buf[buf_len++] = in;
-                nodelay(text_win, FALSE);
+                int buf_len = collect_input_chunk(buf, 4096);
 
                 /*
                  * Determine whether this is a new input chunk. A paste
@@ -679,8 +704,10 @@ main(int argc, char *argv[])
                 clock_gettime(CLOCK_MONOTONIC, &now);
                 long diff_ms = (now.tv_sec - last_input_time.tv_sec) * 1000L +
                                (now.tv_nsec - last_input_time.tv_nsec) / 1000000L;
-                if (last_input_time.tv_sec == 0 || diff_ms > 500 || buf_len > 1)
+                if (last_input_time.tv_sec == 0 || diff_ms > 500 || buf_len > 1) {
                         last_action = ACT_NONE;
+                        chunk_saved = 0;
+                }
                 last_input_time = now;
 
                 for (int i = 0; i < buf_len; i++) {
