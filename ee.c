@@ -704,6 +704,8 @@ main(int argc, char *argv[])
                         } else if ((in == '\10') || (in == 127)) {
                                 in = 8;         /* make sure key is set to backspace */
                                 delete(TRUE);
+                        } else if (in == '\n' || in == '\r') {
+                                insert_line(TRUE);
                         } else if ((in > 31) || (in == 9))
                                 insert(in);
                         else if ((in >= 0) && (in <= 31)) {
@@ -1397,7 +1399,7 @@ control(void)
 		delete(TRUE);
 	else if (in == 9)	/* control i	*/
 		;
-	else if (in == '\10')	/* control j	*/
+	else if (in == 10)	/* control j	*/
 		insert_line(TRUE);
 	else if (in == 11)	/* control k	*/
 		undo_action();
@@ -1466,7 +1468,7 @@ emacs_control(void)
 		delete(TRUE);
 	else if (in == 9)	/* control i	*/
 		;
-	else if (in == '\10')	/* control j	*/
+	else if (in == 10)	/* control j	*/
 		redo_action();
 	else if (in == 11)	/* control k	*/
 		del_line();

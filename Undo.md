@@ -19,9 +19,9 @@ Each physical input is grouped into an *undo chunk*:
 - A paste operation is detected by reading the terminal buffer and always forms
   a single chunk regardless of length or newlines.
 
-Newlines are treated like normal text insertion so multi-line pastes undo in a
-single step. This ensures undo/redo steps correspond directly to physical
-actions rather than individual characters or lines.
+Newlines are handled as ordinary text insertion so multi‑line pastes undo in a
+single step. This keeps the undo behaviour consistent when an entire block is
+pasted at once.
 
 ## Stack Behaviour
 
