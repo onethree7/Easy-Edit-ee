@@ -4,7 +4,6 @@ This document collects ideas and instructions for implementing future improvemen
 
 ## Repository Clean‑up
 
-- **Remove duplicate directory**: A leftover `Easy-Edit-ee/` folder contains the same sources and built binaries (`ee`, `ee.o`). Delete this directory and keep only the root files.
 - Ensure `ee` and `*.o` remain ignored by `.gitignore`.
 
 ## Build & Testing
