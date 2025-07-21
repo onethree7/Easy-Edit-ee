@@ -82,7 +82,7 @@ char *version = "@(#) ee, version "  EE_VERSION  " $Revision: 1.104 $";
 #include <sys/wait.h>
 #include <time.h>
 
-/* ---- Internationalization fallback ---- */
+#include "undo.h"
 #ifndef NO_CATGETS
 #include <nl_types.h>
 nl_catd catalog;
@@ -204,36 +204,6 @@ WINDOW *text_win;
 WINDOW *help_win;
 WINDOW *info_win;
 
-/* ---- Undo/Redo support ---- */
-#define UNDO_DEPTH 1000
-
-struct snapshot {
-    struct text *first;
-    struct text *curr;
-    int position;
-    int absolute_lin;
-    int scr_vert;
-    int scr_horz;
-    int horiz_offset;
-};
-
-static struct snapshot undo_stack[UNDO_DEPTH];
-static int undo_pos = 0;
-static struct snapshot redo_stack[UNDO_DEPTH];
-static int redo_pos = 0;
-
-enum action_type {
-    ACT_NONE = 0,
-    ACT_INSERT,
-    ACT_DELETE,
-    ACT_DEL_WORD,
-    ACT_UNDEL_WORD,
-    ACT_DEL_LINE,
-    ACT_UNDEL_LINE
-};
-
-static enum action_type last_action = ACT_NONE;
-static struct timespec last_input_time = {0};
 
 
 /*
@@ -311,9 +281,6 @@ int search(int display_message);
 void search_prompt(void);
 void del_char(void);
 void undel_char(void);
-void undo_action(void);
-void redo_action(void);
-void push_undo_state(void);
 void del_word(void);
 void undel_word(void);
 void del_line(void);
@@ -336,7 +303,6 @@ int file_op(int arg);
 void shell_op(void);
 void leave_op(void);
 void redraw(void);
-static void refresh_windows(void);
 int Blank_Line(struct text *test_line);
 void Format(void);
 void ee_init(void);
@@ -355,20 +321,6 @@ void strings_init(void);
 
 #undef P_
 /*
- * Begin tracking a modifying action. The first call after an input
- * chunk starts saves a snapshot so the entire chunk can be undone at
- * once. Subsequent calls in the same chunk simply update the action
- * type so mixed inserts and deletes still share one snapshot.
- */
-static int chunk_saved = 1;
-static void start_action(enum action_type act)
-{
-    if (!chunk_saved) {
-        push_undo_state();
-        chunk_saved = 1;
-    }
-    last_action = act;
-}
 
 /*
  * Collect as many queued characters as possible, waiting briefly for
@@ -703,14 +655,7 @@ main(int argc, char *argv[])
                  */
                 struct timespec now;
                 clock_gettime(CLOCK_MONOTONIC, &now);
-                long diff_ms = (now.tv_sec - last_input_time.tv_sec) * 1000L +
-                               (now.tv_nsec - last_input_time.tv_nsec) / 1000000L;
-                if (last_input_time.tv_sec == 0 || diff_ms > 500 || buf_len > 1) {
-                        last_action = ACT_NONE;
-                        chunk_saved = 0;
-                }
-                last_input_time = now;
-
+                note_input(now, buf_len);
                 for (int i = 0; i < buf_len; i++) {
                         in = buf[i];
 
@@ -727,7 +672,7 @@ main(int argc, char *argv[])
                         }
 
                         if (in > 255) {
-                                last_action = ACT_NONE;
+                                reset_chunk();
                                 function_key();
                         } else if ((in == '\10') || (in == 127)) {
                                 in = 8;         /* make sure key is set to backspace */
@@ -737,7 +682,7 @@ main(int argc, char *argv[])
                         } else if ((in > 31) || (in == 9))
                                 insert(in);
                         else if ((in >= 0) && (in <= 31)) {
-                                last_action = ACT_NONE;
+                                reset_chunk();
                                 if (emacs_keys_mode)
                                         emacs_control();
                                 else
@@ -1217,152 +1162,7 @@ txtalloc(void)
         return((struct text *) malloc(sizeof( struct text)));
 }
 
-static void free_text_list(struct text *t)
-{
-        while (t != NULL)
-        {
-                struct text *n = t->next_line;
-                free(t->line);
-                free(t);
-                t = n;
-        }
-}
 
-static struct text *clone_text_list(struct text *src, struct text **out_curr,
-                                   struct text *orig_curr)
-{
-        struct text *head = NULL, *prev = NULL, *curr = NULL;
-        while (src != NULL)
-        {
-                struct text *node = txtalloc();
-                node->line = malloc(src->max_length);
-                memcpy(node->line, src->line, src->line_length + 1);
-                node->line_length = src->line_length;
-                node->max_length = src->max_length;
-                node->line_number = src->line_number;
-                node->prev_line = prev;
-                if (prev)
-                        prev->next_line = node;
-                else
-                        head = node;
-                if (src == orig_curr)
-                        curr = node;
-                prev = node;
-                src = src->next_line;
-        }
-        if (prev)
-                prev->next_line = NULL;
-        if (out_curr)
-                *out_curr = curr;
-        return head;
-}
-
-static struct snapshot take_snapshot(void)
-{
-        struct snapshot snap;
-        snap.first = clone_text_list(first_line, &snap.curr, curr_line);
-        snap.position = position;
-        snap.absolute_lin = absolute_lin;
-        snap.scr_vert = scr_vert;
-        snap.scr_horz = scr_horz;
-        snap.horiz_offset = horiz_offset;
-        return snap;
-}
-
-static void apply_snapshot(struct snapshot *snap)
-{
-        free_text_list(first_line);
-        first_line = snap->first;
-        curr_line = snap->curr;
-        position = snap->position;
-        absolute_lin = snap->absolute_lin;
-        scr_vert = snap->scr_vert;
-        scr_horz = snap->scr_horz;
-        horiz_offset = snap->horiz_offset;
-        point = curr_line->line + position - 1;
-        scr_pos = scr_horz;
-        draw_screen();
-        refresh_windows();
-}
-
-static void refresh_windows(void)
-{
-        touchwin(text_win);
-        wrefresh(text_win);
-        if (info_window) {
-                touchwin(info_win);
-                wrefresh(info_win);
-        }
-        wrefresh(com_win);
-}
-
-/*
- * Save the current editor state on the undo stack.
- * This is called whenever an input event begins modifying text so
- * that each key press or paste can be undone individually.
- */
-void push_undo_state(void)
-{
-        struct snapshot snap = take_snapshot();
-        if (undo_pos == UNDO_DEPTH)
-        {
-                free_text_list(undo_stack[0].first);
-                memmove(&undo_stack[0], &undo_stack[1],
-                        sizeof(struct snapshot) * (UNDO_DEPTH - 1));
-                undo_pos--;
-        }
-        undo_stack[undo_pos++] = snap;
-        while (redo_pos > 0)
-        {
-                redo_pos--;
-                free_text_list(redo_stack[redo_pos].first);
-        }
-}
-
-/*
- * Restore the previous snapshot.  Because snapshots are taken per
- * input event, this reverts exactly one user action (a single key
- * press or paste).
- */
-void undo_action(void)
-{
-        last_action = ACT_NONE;
-        if (undo_pos == 0)
-                return;
-        struct snapshot curr = take_snapshot();
-        if (redo_pos == UNDO_DEPTH)
-        {
-                free_text_list(redo_stack[0].first);
-                memmove(&redo_stack[0], &redo_stack[1],
-                        sizeof(struct snapshot) * (UNDO_DEPTH - 1));
-                redo_pos--;
-        }
-        redo_stack[redo_pos++] = curr;
-        undo_pos--;
-        apply_snapshot(&undo_stack[undo_pos]);
-}
-
-/*
- * Reapply a snapshot that was previously undone, effectively
- * reinstating one user input event.
- */
-void redo_action(void)
-{
-        last_action = ACT_NONE;
-        if (redo_pos == 0)
-                return;
-        struct snapshot curr = take_snapshot();
-        if (undo_pos == UNDO_DEPTH)
-        {
-                free_text_list(undo_stack[0].first);
-                memmove(&undo_stack[0], &undo_stack[1],
-                        sizeof(struct snapshot) * (UNDO_DEPTH - 1));
-                undo_pos--;
-        }
-        undo_stack[undo_pos++] = curr;
-        redo_pos--;
-        apply_snapshot(&redo_stack[redo_pos]);
-}
 
 /* allocate space for file name list node */
 struct files *
