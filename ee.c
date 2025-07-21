@@ -80,6 +80,7 @@ char *version = "@(#) ee, version "  EE_VERSION  " $Revision: 1.104 $";
 #include <stdio.h>
 #include <stdarg.h>
 #include <sys/wait.h>
+#include <time.h>
 
 /* ---- Internationalization fallback ---- */
 #ifndef NO_CATGETS
@@ -225,7 +226,6 @@ enum action_type {
     ACT_NONE = 0,
     ACT_INSERT,
     ACT_DELETE,
-    ACT_INSERT_LINE,
     ACT_DEL_WORD,
     ACT_UNDEL_WORD,
     ACT_DEL_LINE,
@@ -233,6 +233,7 @@ enum action_type {
 };
 
 static enum action_type last_action = ACT_NONE;
+static struct timespec last_input_time = {0};
 
 
 /*
@@ -352,11 +353,48 @@ int unique_test(char *string, char *list[]);
 void strings_init(void);
 
 #undef P_
+/*
+ * Begin tracking a modifying action. The first call after an input
+ * chunk starts saves a snapshot so the entire chunk can be undone at
+ * once. Subsequent calls in the same chunk simply update the action
+ * type so mixed inserts and deletes still share one snapshot.
+ */
+static int chunk_saved = 1;
 static void start_action(enum action_type act)
 {
-    if (last_action != act)
+    if (!chunk_saved) {
         push_undo_state();
+        chunk_saved = 1;
+    }
     last_action = act;
+}
+
+/*
+ * Collect as many queued characters as possible, waiting briefly for
+ * additional input so pasted text arrives in one array.
+ */
+static int collect_input_chunk(int *buf, int max)
+{
+    int len = 0;
+    int ch = wgetch(text_win);
+    if (ch == -1)
+        exit(0);
+    buf[len++] = ch;
+
+    nodelay(text_win, TRUE);
+    struct timespec delay = {0, 30000000}; /* 30ms */
+    while (len < max) {
+        ch = wgetch(text_win);
+        if (ch == ERR) {
+            nanosleep(&delay, NULL);
+            ch = wgetch(text_win);
+            if (ch == ERR)
+                break;
+        }
+        buf[len++] = ch;
+    }
+    nodelay(text_win, FALSE);
+    return len;
 }
 /*
  |	allocate space here for the strings that will be in the menu
@@ -652,46 +690,58 @@ main(int argc, char *argv[])
 			wrefresh(info_win);
 		}
 
-		wrefresh(text_win);
-		in = wgetch(text_win);
-		if (in == -1)
-			exit(0);  /* without this exit ee will go into an 
-			             infinite loop if the network 
-			             session detaches */
+                wrefresh(text_win);
 
-		resize_check();
+                int buf[4096];
+                int buf_len = collect_input_chunk(buf, 4096);
 
-		if (clear_com_win)
-		{
-			clear_com_win = FALSE;
-			wmove(com_win, 0, 0);
-			werase(com_win);
-			if (!info_window)
-			{
-				wprintw(com_win, "%s", com_win_message);
-			}
-			wrefresh(com_win);
-		}
-
-                if (in > 255)
-                {
+                /*
+                 * Determine whether this is a new input chunk. A paste
+                 * or a pause of more than 500ms between keys starts a new
+                 * undo group.
+                 */
+                struct timespec now;
+                clock_gettime(CLOCK_MONOTONIC, &now);
+                long diff_ms = (now.tv_sec - last_input_time.tv_sec) * 1000L +
+                               (now.tv_nsec - last_input_time.tv_nsec) / 1000000L;
+                if (last_input_time.tv_sec == 0 || diff_ms > 500 || buf_len > 1) {
                         last_action = ACT_NONE;
-                        function_key();
+                        chunk_saved = 0;
                 }
-		else if ((in == '\10') || (in == 127))
-		{
-			in = 8;		/* make sure key is set to backspace */
-			delete(TRUE);
-		}
-		else if ((in > 31) || (in == 9))
-			insert(in);
-                else if ((in >= 0) && (in <= 31))
-                {
-                        last_action = ACT_NONE;
-                        if (emacs_keys_mode)
-                                emacs_control();
-                        else
-                                control();
+                last_input_time = now;
+
+                for (int i = 0; i < buf_len; i++) {
+                        in = buf[i];
+
+                        resize_check();
+
+                        if (clear_com_win) {
+                                clear_com_win = FALSE;
+                                wmove(com_win, 0, 0);
+                                werase(com_win);
+                                if (!info_window) {
+                                        wprintw(com_win, "%s", com_win_message);
+                                }
+                                wrefresh(com_win);
+                        }
+
+                        if (in > 255) {
+                                last_action = ACT_NONE;
+                                function_key();
+                        } else if ((in == '\10') || (in == 127)) {
+                                in = 8;         /* make sure key is set to backspace */
+                                delete(TRUE);
+                        } else if (in == '\n' || in == '\r') {
+                                insert_line(TRUE);
+                        } else if ((in > 31) || (in == 9))
+                                insert(in);
+                        else if ((in >= 0) && (in <= 31)) {
+                                last_action = ACT_NONE;
+                                if (emacs_keys_mode)
+                                        emacs_control();
+                                else
+                                        control();
+                        }
                 }
 	}
 	return(0);
@@ -1081,10 +1131,11 @@ draw_line(int vertical, int horiz, unsigned char *ptr, int t_pos, int length)
 }
 
 /* insert new line		*/
-void 
+void
 insert_line(int disp)
 {
-        start_action(ACT_INSERT_LINE);
+        /* treat newlines like character inserts for undo grouping */
+        start_action(ACT_INSERT);
         int temp_pos;
         int temp_pos2;
 	unsigned char *temp;
@@ -1232,6 +1283,11 @@ static void apply_snapshot(struct snapshot *snap)
         draw_screen();
 }
 
+/*
+ * Save the current editor state on the undo stack.
+ * This is called whenever an input event begins modifying text so
+ * that each key press or paste can be undone individually.
+ */
 void push_undo_state(void)
 {
         struct snapshot snap = take_snapshot();
@@ -1250,6 +1306,11 @@ void push_undo_state(void)
         }
 }
 
+/*
+ * Restore the previous snapshot.  Because snapshots are taken per
+ * input event, this reverts exactly one user action (a single key
+ * press or paste).
+ */
 void undo_action(void)
 {
         last_action = ACT_NONE;
@@ -1268,6 +1329,10 @@ void undo_action(void)
         apply_snapshot(&undo_stack[undo_pos]);
 }
 
+/*
+ * Reapply a snapshot that was previously undone, effectively
+ * reinstating one user input event.
+ */
 void redo_action(void)
 {
         last_action = ACT_NONE;
