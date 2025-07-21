@@ -29,9 +29,9 @@ This document collects ideas and instructions for implementing future improvemen
    - Allow users to remap common commands via a config file.
 
 5. **Extended Undo/Redo**
-   - Increase the undo stack depth and make it configurable.
-   - Consider persisting undo history per file during a session.
-   - *Configurable undo amount.*
+   - Undo stack depth raised to 1000.
+   - Grouping skips cursor movement and line breaks.
+   - TODO: make depth configurable and persist history per file.
 
 6. **Color Themes**
    - Use full ncurses color support (including 256-color) and allow theme selection.
