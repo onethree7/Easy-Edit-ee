@@ -62,3 +62,7 @@ Undo support with grouped input chunks is complete for now. See `undo.md` for de
 
 This file serves as a to‑do list and style reference. Update it whenever a new feature is started or completed.
 
+
+## Current Work
+
+UTF-8 buffer refactoring has begun. See `charaters.md` for the ongoing plan.

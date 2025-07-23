@@ -4,7 +4,7 @@
 CC       ?= gcc
 CFLAGS   ?= -Wall -Wextra -O2
 CPPFLAGS ?=
-LDFLAGS  ?= -lncurses
+LDFLAGS  ?= -lncursesw
 PREFIX   ?= /usr/local
 BINDIR   ?= $(PREFIX)/bin
 SRC      = ee.c undo.c

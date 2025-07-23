@@ -3315,12 +3315,13 @@ set_up_term(void)
 {
 	if (!curses_initialized)
 	{
-		initscr();
-		savetty();
-		noecho();
-		raw();
-		nonl();
-		curses_initialized = TRUE;
+                initscr();
+                savetty();
+                noecho();
+                raw();
+                nonl();
+                meta(stdscr, TRUE);
+                curses_initialized = TRUE;
 	}
 
 	if (((LINES > 15) && (COLS >= 80)) && info_window)
@@ -3332,20 +3333,23 @@ set_up_term(void)
 	}
 
 	idlok(stdscr, TRUE);
-	com_win = newwin(1, COLS, (LINES - 1), 0);
-	keypad(com_win, TRUE);
-	idlok(com_win, TRUE);
-	wrefresh(com_win);
-	if (!info_window)
-		text_win = newwin((LINES - 1), COLS, 0, 0);
-	else
-		text_win = newwin((LINES - 7), COLS, 6, 0);
-	keypad(text_win, TRUE);
-	idlok(text_win, TRUE);
-	wrefresh(text_win);
-	help_win = newwin((LINES - 1), COLS, 0, 0);
-	keypad(help_win, TRUE);
-	idlok(help_win, TRUE);
+        com_win = newwin(1, COLS, (LINES - 1), 0);
+        keypad(com_win, TRUE);
+        idlok(com_win, TRUE);
+        meta(com_win, TRUE);
+        wrefresh(com_win);
+        if (!info_window)
+                text_win = newwin((LINES - 1), COLS, 0, 0);
+        else
+                text_win = newwin((LINES - 7), COLS, 6, 0);
+        keypad(text_win, TRUE);
+        idlok(text_win, TRUE);
+        meta(text_win, TRUE);
+        wrefresh(text_win);
+        help_win = newwin((LINES - 1), COLS, 0, 0);
+        keypad(help_win, TRUE);
+        idlok(help_win, TRUE);
+        meta(help_win, TRUE);
 	if (info_window)
 	{
 		info_type = CONTROL_KEYS;
