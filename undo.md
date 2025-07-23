@@ -26,3 +26,10 @@ order.
 
 The stack depth is fixed at compile time (100 snapshots).  Older entries
 are dropped when the limit is exceeded.
+
+## Implementation Notes
+
+- Input is gathered as chunks. `collect_input_chunk()` waits briefly so paste sequences arrive as a single block.
+- Newlines are treated as regular characters so pasted blocks undo in one step.
+- Snapshots are captured on first modification in each chunk. `undo_action()` and `redo_action()` restore snapshots and call `redraw()` to refresh the screen.
+- Future work may tune buffer sizes or adopt bracketed paste mode.
