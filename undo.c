@@ -7,6 +7,7 @@
 /* use the globals from ee.c */
 
 extern void draw_screen(void);
+extern void redraw(void);
 extern struct text *txtalloc(void);
 
 #define UNDO_DEPTH 100
@@ -78,7 +79,7 @@ static void apply_snapshot(struct snapshot *snap)
     scr_horz = snap->scr_horz;
     horiz_offset = snap->horiz_offset;
     point = curr_line->line + position - 1;
-    draw_screen();
+    redraw();
 }
 
 void undo_init(void)
