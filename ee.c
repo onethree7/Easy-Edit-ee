@@ -81,6 +81,7 @@ char *version = "@(#) ee, version "  EE_VERSION  " $Revision: 1.104 $";
 #include <stdarg.h>
 #include <sys/wait.h>
 #include <time.h>
+#include "undo.h"
 
 /* ---- Internationalization fallback ---- */
 #ifndef NO_CATGETS
@@ -106,20 +107,14 @@ nl_catd catalog;
 #define CONTROL_KEYS 1
 #define COMMANDS     2
 
-struct text {
-	unsigned char *line;		/* line of characters		*/
-	int line_number;		/* line number			*/
-	int line_length;	/* actual number of characters in the line */
-	int max_length;	/* maximum number of characters the line handles */
-	struct text *next_line;		/* next line of text		*/
-	struct text *prev_line;		/* previous line of text	*/
-	};
+#include "text.h"
 
-struct text *first_line;	/* first line of current buffer		*/
-struct text *dlt_line;		/* structure for info on deleted line	*/
-struct text *curr_line;		/* current line cursor is on		*/
-struct text *tmp_line;		/* temporary line pointer		*/
-struct text *srch_line;		/* temporary pointer for search routine */
+struct text *first_line;
+struct text *dlt_line;
+struct text *curr_line;
+struct text *tmp_line;
+struct text *srch_line;
+
 
 struct files {		/* structure to store names of files to be edited*/
 	unsigned char *name;		/* name of file				*/
@@ -205,22 +200,6 @@ WINDOW *help_win;
 WINDOW *info_win;
 
 /* ---- Undo/Redo support ---- */
-#define UNDO_DEPTH 1000
-
-struct snapshot {
-    struct text *first;
-    struct text *curr;
-    int position;
-    int absolute_lin;
-    int scr_vert;
-    int scr_horz;
-    int horiz_offset;
-};
-
-static struct snapshot undo_stack[UNDO_DEPTH];
-static int undo_pos = 0;
-static struct snapshot redo_stack[UNDO_DEPTH];
-static int redo_pos = 0;
 
 enum action_type {
     ACT_NONE = 0,
@@ -313,7 +292,9 @@ void del_char(void);
 void undel_char(void);
 void undo_action(void);
 void redo_action(void);
-void push_undo_state(void);
+void undo_push_state(void);
+void undo_begin_chunk(void);
+void undo_end_chunk(void);
 void del_word(void);
 void undel_word(void);
 void del_line(void);
@@ -345,6 +326,7 @@ void spell_op(void);
 void ispell_op(void);
 int first_word_len(struct text *test_line);
 void Auto_Format(void);
+static void run_editor(void);
 void modes_op(void);
 char *is_in_string(char *string, char *substring);
 char *resolve_name(char *name);
@@ -359,13 +341,9 @@ void strings_init(void);
  * once. Subsequent calls in the same chunk simply update the action
  * type so mixed inserts and deletes still share one snapshot.
  */
-static int chunk_saved = 1;
 static void start_action(enum action_type act)
 {
-    if (!chunk_saved) {
-        push_undo_state();
-        chunk_saved = 1;
-    }
+    undo_begin_chunk();
     last_action = act;
 }
 
@@ -666,14 +644,19 @@ main(int argc, char *argv[])
         else
                 check_fp();
 
-        push_undo_state();
+        undo_push_state();
+        run_editor();
+        return(0);
+}
 
-	clear_com_win = TRUE;
+static void run_editor(void)
+{
+        clear_com_win = TRUE;
 
-	counter = 0;
+        int counter = 0;
 
-	while(edit) 
-	{
+        while(edit)
+        {
 		/*
 		 |  display line and column information
 		 */
@@ -706,7 +689,7 @@ main(int argc, char *argv[])
                                (now.tv_nsec - last_input_time.tv_nsec) / 1000000L;
                 if (last_input_time.tv_sec == 0 || diff_ms > 500 || buf_len > 1) {
                         last_action = ACT_NONE;
-                        chunk_saved = 0;
+                        undo_end_chunk();
                 }
                 last_input_time = now;
 
@@ -743,8 +726,8 @@ main(int argc, char *argv[])
                                         control();
                         }
                 }
-	}
-	return(0);
+                undo_end_chunk();
+        }
 }
 
 /* resize the line to length + factor*/
@@ -1216,140 +1199,8 @@ txtalloc(void)
         return((struct text *) malloc(sizeof( struct text)));
 }
 
-static void free_text_list(struct text *t)
-{
-        while (t != NULL)
-        {
-                struct text *n = t->next_line;
-                free(t->line);
-                free(t);
-                t = n;
-        }
-}
 
-static struct text *clone_text_list(struct text *src, struct text **out_curr,
-                                   struct text *orig_curr)
-{
-        struct text *head = NULL, *prev = NULL, *curr = NULL;
-        while (src != NULL)
-        {
-                struct text *node = txtalloc();
-                node->line = malloc(src->max_length);
-                memcpy(node->line, src->line, src->line_length + 1);
-                node->line_length = src->line_length;
-                node->max_length = src->max_length;
-                node->line_number = src->line_number;
-                node->prev_line = prev;
-                if (prev)
-                        prev->next_line = node;
-                else
-                        head = node;
-                if (src == orig_curr)
-                        curr = node;
-                prev = node;
-                src = src->next_line;
-        }
-        if (prev)
-                prev->next_line = NULL;
-        if (out_curr)
-                *out_curr = curr;
-        return head;
-}
 
-static struct snapshot take_snapshot(void)
-{
-        struct snapshot snap;
-        snap.first = clone_text_list(first_line, &snap.curr, curr_line);
-        snap.position = position;
-        snap.absolute_lin = absolute_lin;
-        snap.scr_vert = scr_vert;
-        snap.scr_horz = scr_horz;
-        snap.horiz_offset = horiz_offset;
-        return snap;
-}
-
-static void apply_snapshot(struct snapshot *snap)
-{
-        free_text_list(first_line);
-        first_line = snap->first;
-        curr_line = snap->curr;
-        position = snap->position;
-        absolute_lin = snap->absolute_lin;
-        scr_vert = snap->scr_vert;
-        scr_horz = snap->scr_horz;
-        horiz_offset = snap->horiz_offset;
-        point = curr_line->line + position - 1;
-        scr_pos = scr_horz;
-        draw_screen();
-}
-
-/*
- * Save the current editor state on the undo stack.
- * This is called whenever an input event begins modifying text so
- * that each key press or paste can be undone individually.
- */
-void push_undo_state(void)
-{
-        struct snapshot snap = take_snapshot();
-        if (undo_pos == UNDO_DEPTH)
-        {
-                free_text_list(undo_stack[0].first);
-                memmove(&undo_stack[0], &undo_stack[1],
-                        sizeof(struct snapshot) * (UNDO_DEPTH - 1));
-                undo_pos--;
-        }
-        undo_stack[undo_pos++] = snap;
-        while (redo_pos > 0)
-        {
-                redo_pos--;
-                free_text_list(redo_stack[redo_pos].first);
-        }
-}
-
-/*
- * Restore the previous snapshot.  Because snapshots are taken per
- * input event, this reverts exactly one user action (a single key
- * press or paste).
- */
-void undo_action(void)
-{
-        last_action = ACT_NONE;
-        if (undo_pos == 0)
-                return;
-        struct snapshot curr = take_snapshot();
-        if (redo_pos == UNDO_DEPTH)
-        {
-                free_text_list(redo_stack[0].first);
-                memmove(&redo_stack[0], &redo_stack[1],
-                        sizeof(struct snapshot) * (UNDO_DEPTH - 1));
-                redo_pos--;
-        }
-        redo_stack[redo_pos++] = curr;
-        undo_pos--;
-        apply_snapshot(&undo_stack[undo_pos]);
-}
-
-/*
- * Reapply a snapshot that was previously undone, effectively
- * reinstating one user input event.
- */
-void redo_action(void)
-{
-        last_action = ACT_NONE;
-        if (redo_pos == 0)
-                return;
-        struct snapshot curr = take_snapshot();
-        if (undo_pos == UNDO_DEPTH)
-        {
-                free_text_list(undo_stack[0].first);
-                memmove(&undo_stack[0], &undo_stack[1],
-                        sizeof(struct snapshot) * (UNDO_DEPTH - 1));
-                undo_pos--;
-        }
-        undo_stack[undo_pos++] = curr;
-        redo_pos--;
-        apply_snapshot(&redo_stack[redo_pos]);
-}
 
 /* allocate space for file name list node */
 struct files *

@@ -7,19 +7,15 @@ CPPFLAGS ?=
 LDFLAGS  ?= -lncurses
 PREFIX   ?= /usr/local
 BINDIR   ?= $(PREFIX)/bin
-SRC      = ee.c 
-OBJ      = $(SRC:.c=.o)
+SRC      = ee.c undo.c
 BIN      = ee
 
 # ---- Targets ----
 
 all: $(BIN)
 
-$(BIN): $(OBJ)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $(OBJ) $(LDFLAGS)
-
-%.o: %.c new_curse.h ee_version.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
+$(BIN): $(SRC) new_curse.h ee_version.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(SRC) -o $@ $(LDFLAGS)
 
 install: $(BIN)
 	install -d $(DESTDIR)$(BINDIR)
@@ -32,7 +28,7 @@ strip: $(BIN)
 	strip $(BIN)
 
 clean:
-	rm -f $(BIN) $(OBJ)
+	rm -f $(BIN)
 
 check:
 	@which ncurses5-config 1>/dev/null 2>&1 || which ncursesw6-config 1>/dev/null 2>&1 || echo "WARN: ncurses[-dev] not found, install it if build fails!"

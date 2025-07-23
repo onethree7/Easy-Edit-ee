@@ -1,43 +1,30 @@
-# Undo/Redo Snapshot Framework
+# Undo and Redo
 
-This document describes the approach used to record user input for undo and redo
-actions in `ee`.
+`ee` keeps an in-memory history of snapshots. Each snapshot stores the
+entire text buffer and cursor position so a whole chunk of input can be
+undone at once. The history is not saved across sessions.
 
-## Snapshotting
+## Chunk-based History
 
-- A **snapshot** captures the entire buffer state along with cursor and screen
-  position information.
-- Snapshots are taken at the start of any input event that modifies text. This
-  includes character insertion, deletion, line operations and paste events.
-- Navigation commands such as arrow keys do not generate snapshots.
+Input is processed in small bursts. `collect_input_chunk()` grabs all
+queued characters and waits about **30 ms** for more so that pasted text
+arrives as one block. When more than **500 ms** elapses between keys, the
+current chunk is closed and a new one begins. Editing functions call
+`start_action()` the first time they modify a chunk, causing
+`undo_begin_chunk()` to record a snapshot.
 
-## Input Granularity
+Large pastes therefore end up as a single chunk and revert with one
+undo step. Normal typing forms its own smaller chunks so characters
+undo in order.
 
-Each physical input is grouped into an *undo chunk*:
+Restoring a snapshot invokes `redraw()` to repaint the whole screen.
+This avoids garbled or empty lines that could appear after undoing large
+pasted blocks.
 
-- Consecutive key presses within 500ms of each other extend the current chunk.
-- A paste operation is detected by reading the terminal buffer and always forms
-  a single chunk regardless of length or newlines.
+## Commands
 
-Newlines are handled as ordinary text insertion so multi‑line pastes undo in a
-single step. This keeps the undo behaviour consistent when an entire block is
-pasted at once.
+- **Ctrl+K** — undo the last chunk
+- **Ctrl+R** — redo a previously undone chunk
 
-## Stack Behaviour
-
-- `push_undo_state()` saves a snapshot to the undo stack and clears the redo
-  stack.
-- `undo_action()` restores the most recent snapshot and pushes the current state
-  onto the redo stack.
-- `redo_action()` restores the top snapshot from the redo stack and saves the
-  current state back to the undo stack.
-
-## Implementation Notes
-
-During input handling `collect_input_chunk()` gathers pending characters and
-waits briefly (30 ms) for more to arrive. This ensures large paste operations
-arrive as one array before processing begins. A timestamp check resets
-`last_action` and clears the chunk flag when more than 500 ms have elapsed since
-the previous input, starting a new undo group. `start_action()` takes a snapshot
-the first time it is called within a chunk so the whole block can be undone with
-one command.
+The stack depth is fixed at compile time (100 snapshots). Older entries
+are dropped when the limit is exceeded.

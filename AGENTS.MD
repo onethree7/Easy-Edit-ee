@@ -28,10 +28,10 @@ This document collects ideas and instructions for implementing future improvemen
 4. **Configurable Keybindings & Macros**
    - Allow users to remap common commands via a config file.
 
-5. **Extended Undo/Redo**
-   - Increase the undo stack depth and make it configurable.
-   - Consider persisting undo history per file during a session.
-   - *Configurable undo amount.*
+5. **Extended Undo/Redo** *(in progress)*
+   - Snapshot-based undo with chunk grouping is implemented (see `Undo.md`).
+   - Next steps: make the stack depth configurable and explore persisting
+     history per file during a session.
 
 6. **Color Themes**
    - Use full ncurses color support (including 256-color) and allow theme selection.
