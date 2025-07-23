@@ -119,7 +119,7 @@ struct text *srch_line;
 
 
 struct files {		/* structure to store names of files to be edited*/
-	ee_char *name;		/* name of file				*/
+	char *name;		/* name of file				*/
 	struct files *next_name;
 	};
 
@@ -177,14 +177,14 @@ ee_char *u_srch_str;	/* pointer to non-case sensitive search	*/
 ee_char *srch_1;		/* pointer to start of suspect string	*/
 ee_char *srch_2;		/* pointer to next character of string	*/
 ee_char *srch_3;
-ee_char *in_file_name = NULL;	/* name of input file		*/
+char *in_file_name = NULL;	/* name of input file		*/
 char *tmp_file;	/* temporary file name			*/
 ee_char *d_char;		/* deleted character			*/
 ee_char *d_word;		/* deleted word				*/
 ee_char *d_line;		/* deleted line				*/
 char in_string[513];	/* buffer for reading a file		*/
-ee_char *print_command = (ee_char *)"lpr";	/* string to use for the print command 	*/
-ee_char *start_at_line = NULL;	/* move to this line at start of session*/
+char *print_command = "lpr";      /* string to use for the print command  */
+char *start_at_line = NULL;  /* move to this line at start of session*/
 int in;				/* input character			*/
 
 FILE *temp_fp;			/* temporary file pointer		*/
@@ -257,6 +257,7 @@ void insert_line(int disp);
 struct text *txtalloc(void);
 struct files *name_alloc(void);
 ee_char *next_word(ee_char *string);
+char *next_ascii_word(char *string);
 void prev_word(void);
 void control(void);
 void emacs_control(void);
@@ -1222,7 +1223,18 @@ next_word(ee_char *string)
 		string++;
 	while ((*string != '\0') && ((*string == 32) || (*string == 9)))
 		string++;
-	return(string);
+        return(string);
+}
+
+/* move to next word in an ASCII string */
+char *
+next_ascii_word(char *string)
+{
+        while ((*string != '\0') && ((*string != ' ') && (*string != '\t')))
+                string++;
+        while ((*string != '\0') && ((*string == ' ') || (*string == '\t')))
+                string++;
+        return string;
 }
 
 /* move to start of previous word in text	*/
@@ -1782,7 +1794,7 @@ command(char *cmd_str1)
 		{
 			return;
 		}
-		cmd_str = next_word(cmd_str);
+		cmd_str = next_ascii_word(cmd_str);
 		if (*cmd_str == '\0')
 		{
 			cmd_str = cmd_str2 = get_string(file_write_prompt_str, TRUE);
@@ -1798,7 +1810,7 @@ command(char *cmd_str1)
 		{
 			return;
 		}
-		cmd_str = next_word(cmd_str);
+		cmd_str = next_ascii_word(cmd_str);
 		if (*cmd_str == '\0')
 		{
 			cmd_str = cmd_str2 = get_string(file_read_prompt_str, TRUE);
@@ -1887,7 +1899,7 @@ command(char *cmd_str1)
 	{
 		cmd_str++;
 		if ((*cmd_str == ' ') || (*cmd_str == 9))
-			cmd_str = next_word(cmd_str);
+			cmd_str = next_ascii_word(cmd_str);
 		sh_command(cmd_str);
 	}
 	else if ((*cmd_str == '<') && (!in_pipe))
@@ -1896,7 +1908,7 @@ command(char *cmd_str1)
 		shell_fork = FALSE;
 		cmd_str++;
 		if ((*cmd_str == ' ') || (*cmd_str == '\t'))
-			cmd_str = next_word(cmd_str);
+			cmd_str = next_ascii_word(cmd_str);
 		command(cmd_str);
 		in_pipe = FALSE;
 		shell_fork = TRUE;
@@ -1906,7 +1918,7 @@ command(char *cmd_str1)
 		out_pipe = TRUE;
 		cmd_str++;
 		if ((*cmd_str == ' ') || (*cmd_str == '\t'))
-			cmd_str = next_word(cmd_str);
+			cmd_str = next_ascii_word(cmd_str);
 		command(cmd_str);
 		out_pipe = FALSE;
 	}
@@ -2012,7 +2024,7 @@ get_string(char *prompt, int advance)
 	*nam_str = '\0';
 	nam_str = tmp_string;
 	if (((*nam_str == ' ') || (*nam_str == 9)) && (advance))
-		nam_str = next_word(nam_str);
+		nam_str = next_ascii_word(nam_str);
 	string = malloc(strlen(nam_str) + 1);
 	strcpy(string, nam_str);
 	free(tmp_string);
@@ -2766,10 +2778,14 @@ search_prompt(void)
 		free(srch_str);
 	if ((u_srch_str != NULL) && (*u_srch_str != '\0'))
 		free(u_srch_str);
-	srch_str = get_string(search_prompt_str, FALSE);
-	gold = FALSE;
-	srch_3 = srch_str;
-	srch_1 = u_srch_str = malloc((wcslen(srch_str) + 1) * sizeof(ee_char));
+    char *tmp = get_string(search_prompt_str, FALSE);
+    size_t slen = mbstowcs(NULL, tmp, 0);
+    srch_str = malloc((slen + 1) * sizeof(ee_char));
+    mbstowcs(srch_str, tmp, slen + 1);
+    free(tmp);
+    gold = FALSE;
+    srch_3 = srch_str;
+    srch_1 = u_srch_str = malloc((slen + 1) * sizeof(ee_char));
 	while (*srch_3 != '\0')
         {
                 *srch_1 = towupper(*srch_3);
@@ -4174,7 +4190,7 @@ Format(void)
 	wrefresh(com_win);
 }
 
-ee_char *init_name[3] = {
+char *init_name[3] = {
 	"/usr/share/misc/init.ee", 
 	NULL, 
 	".init.ee"
@@ -4185,9 +4201,9 @@ void
 ee_init(void)
 {
 	FILE *init_file;
-	ee_char *string;
-	ee_char *str1;
-	ee_char *str2;
+	char *string;
+	char *str1;
+	char *str2;
 	char *home;
 	int counter;
 	int temp_int;
@@ -4241,19 +4257,19 @@ ee_init(void)
 					auto_format = FALSE;
 				else if (compare(str1, Echo, FALSE))
 				{
-					str1 = next_word(str1);
+					str1 = next_ascii_word(str1);
 					if (*str1 != '\0')
 						echo_string(str1);
 				}
 				else if (compare(str1, PRINTCOMMAND, FALSE))
 				{
-					str1 = next_word(str1);
+					str1 = next_ascii_word(str1);
 					print_command = malloc(strlen(str1)+1);
 					strcpy(print_command, str1);
 				}
 				else if (compare(str1, RIGHTMARGIN, FALSE))
 				{
-					str1 = next_word(str1);
+					str1 = next_ascii_word(str1);
 					if ((*str1 >= '0') && (*str1 <= '9'))
 					{
 						temp_int = atoi(str1);
@@ -5129,7 +5145,8 @@ strings_init(void)
 {
 	int counter;
 
-	setlocale(LC_ALL, "");
+    if (!setlocale(LC_ALL, ""))
+        setlocale(LC_ALL, "C.UTF-8");
 #ifndef NO_CATGETS
 	catalog = catopen("ee", NL_CAT_LOCALE);
 #endif /* NO_CATGETS */
