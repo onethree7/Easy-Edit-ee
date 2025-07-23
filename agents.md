@@ -4,7 +4,6 @@ This document collects ideas and instructions for implementing future improvemen
 
 ## Repository Clean‑up
 
-- **Remove duplicate directory**: A leftover `Easy-Edit-ee/` folder contains the same sources and built binaries (`ee`, `ee.o`). Delete this directory and keep only the root files.
 - Ensure `ee` and `*.o` remain ignored by `.gitignore`.
 
 ## Build & Testing
@@ -47,6 +46,10 @@ This document collects ideas and instructions for implementing future improvemen
 
 10. **Testing**
     - Create a minimal test script that launches `ee` in batch mode to verify key features (opening a file, running a command, saving). This can be invoked by `make test` in the future.
+
+## Status
+
+Undo support with grouped input chunks is complete for now. See `undo.md` for details.
 
 ## Coding Style
 
