@@ -61,9 +61,11 @@ char *ee_copyright_message =
 
 char *version = "@(#) ee, version "  EE_VERSION  " $Revision: 1.104 $";
 
+#define _XOPEN_SOURCE_EXTENDED 1
+#define _XOPEN_SOURCE 600
 /* ---- Always use Linux ncurses directly ---- */
-#include <ncurses.h>
-#include <ncurses.h>
+#include <ncursesw/curses.h>
+#include <wctype.h>
 
 /* ---- Standard system headers ---- */
 #include <ctype.h>
@@ -117,7 +119,7 @@ struct text *srch_line;
 
 
 struct files {		/* structure to store names of files to be edited*/
-	unsigned char *name;		/* name of file				*/
+	ee_char *name;		/* name of file				*/
 	struct files *next_name;
 	};
 
@@ -169,20 +171,20 @@ int ee_chinese = FALSE;		/* allows handling of multi-byte characters  */
 				/* code recognizes a two-byte character      */
 				/* sequence				     */
 
-unsigned char *point;		/* points to current position in line	*/
-unsigned char *srch_str;	/* pointer for search string		*/
-unsigned char *u_srch_str;	/* pointer to non-case sensitive search	*/
-unsigned char *srch_1;		/* pointer to start of suspect string	*/
-unsigned char *srch_2;		/* pointer to next character of string	*/
-unsigned char *srch_3;
-unsigned char *in_file_name = NULL;	/* name of input file		*/
+ee_char *point;		/* points to current position in line	*/
+ee_char *srch_str;	/* pointer for search string		*/
+ee_char *u_srch_str;	/* pointer to non-case sensitive search	*/
+ee_char *srch_1;		/* pointer to start of suspect string	*/
+ee_char *srch_2;		/* pointer to next character of string	*/
+ee_char *srch_3;
+ee_char *in_file_name = NULL;	/* name of input file		*/
 char *tmp_file;	/* temporary file name			*/
-unsigned char *d_char;		/* deleted character			*/
-unsigned char *d_word;		/* deleted word				*/
-unsigned char *d_line;		/* deleted line				*/
+ee_char *d_char;		/* deleted character			*/
+ee_char *d_word;		/* deleted word				*/
+ee_char *d_line;		/* deleted line				*/
 char in_string[513];	/* buffer for reading a file		*/
-unsigned char *print_command = (unsigned char *)"lpr";	/* string to use for the print command 	*/
-unsigned char *start_at_line = NULL;	/* move to this line at start of session*/
+ee_char *print_command = (ee_char *)"lpr";	/* string to use for the print command 	*/
+ee_char *start_at_line = NULL;	/* move to this line at start of session*/
 int in;				/* input character			*/
 
 FILE *temp_fp;			/* temporary file pointer		*/
@@ -243,18 +245,18 @@ struct menu_entries {
 	int argument;
 	};
 
-unsigned char *resiz_line(int factor, struct text *rline, int rpos);
+ee_char *resiz_line(int factor, struct text *rline, int rpos);
 void insert(int character);
 void delete(int disp);
-void scanline(unsigned char *pos);
+void scanline(ee_char *pos);
 int tabshift(int temp_int);
-int out_char(WINDOW *window, int character, int column);
-int len_char(int character, int column);
-void draw_line(int vertical, int horiz, unsigned char *ptr, int t_pos, int length);
+int out_char(WINDOW *window, ee_char character, int column);
+int len_char(ee_char character, int column);
+void draw_line(int vertical, int horiz, ee_char *ptr, int t_pos, int length);
 void insert_line(int disp);
 struct text *txtalloc(void);
 struct files *name_alloc(void);
-unsigned char *next_word(unsigned char *string);
+ee_char *next_word(ee_char *string);
 void prev_word(void);
 void control(void);
 void emacs_control(void);
@@ -275,11 +277,11 @@ int scan(char *line, int offset, int column);
 char *get_string(char *prompt, int advance);
 int compare(char *string1, char *string2, int sensitive);
 void goto_line(char *cmd_str);
-void midscreen(int line, unsigned char *pnt);
+void midscreen(int line, ee_char *pnt);
 void get_options(int numargs, char *arguments[]);
 void check_fp(void);
 void get_file(char *file_name);
-void get_line(int length, unsigned char *in_string, int *append);
+void get_line(int length, ee_char *in_string, int *append);
 void draw_screen(void);
 void finish(void);
 int quit(int noverify);
@@ -354,22 +356,23 @@ static void start_action(enum action_type act)
 static int collect_input_chunk(int *buf, int max)
 {
     int len = 0;
-    int ch = wgetch(text_win);
-    if (ch == -1)
+    wint_t ch;
+    int rc = wget_wch(text_win, &ch);
+    if (rc == ERR)
         exit(0);
-    buf[len++] = ch;
+    buf[len++] = (int)ch;
 
     nodelay(text_win, TRUE);
     struct timespec delay = {0, 30000000}; /* 30ms */
     while (len < max) {
-        ch = wgetch(text_win);
-        if (ch == ERR) {
+        rc = wget_wch(text_win, &ch);
+        if (rc == ERR) {
             nanosleep(&delay, NULL);
-            ch = wgetch(text_win);
-            if (ch == ERR)
+            rc = wget_wch(text_win, &ch);
+            if (rc == ERR)
                 break;
         }
-        buf[len++] = ch;
+        buf[len++] = (int)ch;
     }
     nodelay(text_win, FALSE);
     return len;
@@ -596,15 +599,15 @@ main(int argc, char *argv[])
 	signal(SIGCHLD, SIG_DFL);
 	signal(SIGSEGV, SIG_DFL);
 	signal(SIGINT, edit_abort);
-	d_char = malloc(3);	/* provide a buffer for multi-byte chars */
-	d_word = malloc(150);
+	d_char = malloc(3 * sizeof(ee_char));	/* provide a buffer for multi-byte chars */
+	d_word = malloc(150 * sizeof(ee_char));
 	*d_word = '\0';
 	d_line = NULL;
 	dlt_line = txtalloc();
 	dlt_line->line = d_line;
 	dlt_line->line_length = 0;
 	curr_line = first_line = txtalloc();
-	curr_line->line = point = malloc(10);
+	curr_line->line = point = malloc(10 * sizeof(ee_char));
 	curr_line->line_length = 1;
 	curr_line->max_length = 10;
 	curr_line->prev_line = NULL;
@@ -731,14 +734,14 @@ static void run_editor(void)
 }
 
 /* resize the line to length + factor*/
-unsigned char *
+ee_char *
 resiz_line(int factor, struct text *rline, int rpos)
 {
-	unsigned char *rpoint;
+	ee_char *rpoint;
 	int resiz_var;
  
-	rline->max_length += factor;
-	rpoint = rline->line = realloc(rline->line, rline->max_length );
+        rline->max_length += factor;
+        rpoint = rline->line = realloc(rline->line, rline->max_length * sizeof(ee_char));
 	for (resiz_var = 1 ; (resiz_var < rpos) ; resiz_var++)
 		rpoint++;
 	return(rpoint);
@@ -751,8 +754,8 @@ insert(int character)
         start_action(ACT_INSERT);
         int counter;
         int value;
-	unsigned char *temp;	/* temporary pointer			*/
-	unsigned char *temp2;	/* temporary pointer			*/
+	ee_char *temp;	/* temporary pointer			*/
+	ee_char *temp2;	/* temporary pointer			*/
 
 	if ((character == '\011') && (expand_tabs))
 	{
@@ -783,19 +786,19 @@ insert(int character)
 	}
 	*point = character;	/* insert new character			*/
 	wclrtoeol(text_win);
-	if (!isprint((unsigned char)character)) /* check for TAB character*/
-	{
-		scr_pos = scr_horz += out_char(text_win, character, scr_horz);
-		point++;
-		position++;
-	}
-	else
-	{
-		waddch(text_win, (unsigned char)character);
-		scr_pos = ++scr_horz;
-		point++;
-		position ++;
-	}
+       if (!iswprint(character)) /* check for TAB character*/
+       {
+               scr_pos = scr_horz += out_char(text_win, character, scr_horz);
+               point++;
+               position++;
+       }
+       else
+       {
+               waddnwstr(text_win, &character, 1);
+               scr_pos = ++scr_horz;
+               point++;
+               position ++;
+       }
 
 	if ((observ_margins) && (right_margin < scr_pos))
 	{
@@ -835,8 +838,8 @@ void
 delete(int disp)
 {
         start_action(ACT_DELETE);
-        unsigned char *tp;
-        unsigned char *temp2;
+        ee_char *tp;
+        ee_char *temp2;
 	struct text *temp_buff;
 	int temp_vert;
 	int temp_pos;
@@ -940,10 +943,10 @@ delete(int disp)
 
 /* find the proper horizontal position for the pointer	*/
 void 
-scanline(unsigned char *pos)
+scanline(ee_char *pos)
 {
 	int temp;
-	unsigned char *ptr;
+	ee_char *ptr;
 
 	ptr = curr_line->line;
 	temp = 0;
@@ -992,12 +995,12 @@ tabshift(int temp_int)
 }
 
 /* output non-printing character */
-int 
-out_char(WINDOW *window, int character, int column)
+int
+out_char(WINDOW *window, ee_char character, int column)
 {
-	int i1, i2;
-	char *string;
-	char string2[8];
+        int i1, i2;
+        char *string;
+        char string2[16];
 
 	if (character == TAB)
 	{
@@ -1009,63 +1012,65 @@ out_char(WINDOW *window, int character, int column)
 		}
 		return(i1);
 	}
-	else if ((character >= '\0') && (character < ' '))
-	{
-		string = table[(int) character];
-	}
-	else if ((character < 0) || (character >= 127))
-	{
-		if (character == 127)
-			string = "^?";
-		else if (!eightbit)
-		{
-			sprintf(string2, "<%d>", (character < 0) ? (character + 256) : character);
-			string = string2;
-		}
-		else
-		{
-			waddch(window, (unsigned char)character );
-			return(1);
-		}
-	}
-	else
-	{
-		waddch(window, (unsigned char)character);
-		return(1);
-	}
-	for (i2 = 0; (string[i2] != '\0') && (((column+i2+1)-horiz_offset) < last_col); i2++)
-		waddch(window, (unsigned char)string[i2]);
-	return(strlen(string));
+        else if ((character >= L'\0') && (character < L' '))
+        {
+                string = table[(int) character];
+        }
+        else if (!iswprint(character))
+        {
+                if (character == 127)
+                        string = "^?";
+                else if (!eightbit)
+                {
+                        sprintf(string2, "<%x>", (unsigned int)character);
+                        string = string2;
+                }
+                else
+                {
+                        waddnwstr(window, &character, 1);
+                        return(1);
+                }
+        }
+        else
+        {
+                waddnwstr(window, &character, 1);
+                i1 = wcwidth(character);
+                return(i1 > 0 ? i1 : 1);
+        }
+        for (i2 = 0; (string[i2] != '\0') && (((column+i2+1)-horiz_offset) < last_col); i2++)
+                waddch(window, (unsigned char)string[i2]);
+        return(strlen(string));
 }
 
 /* return the length of the character	*/
-int 
-len_char(int character, int column)
+int
+len_char(ee_char character, int column)
 {
 	int length;
 
-	if (character == '\t')
-		length = tabshift(column);
-	else if ((character >= 0) && (character < 32))
-		length = 2;
-	else if ((character >= 32) && (character <= 126))
-		length = 1;
-	else if (character == 127)
-		length = 2;
-	else if (((character > 126) || (character < 0)) && (!eightbit))
-		length = 5;
-	else
-		length = 1;
+        if (character == '\t')
+                length = tabshift(column);
+        else {
+                int w = wcwidth(character);
+                if (w > 0)
+                        length = w;
+                else if ((character >= 0 && character < 32) || character == 127)
+                        length = 2;
+                else if (!eightbit)
+                        length = 5;
+                else
+                        length = 1;
+        }
 
 	return(length);
 }
 
 /* redraw line from current position */
 void 
-draw_line(int vertical, int horiz, unsigned char *ptr, int t_pos, int length)
+draw_line(int vertical, int horiz, ee_char *ptr, int t_pos, int length)
 {
 	int d;		/* partial length of special or tab char to display  */
-	unsigned char *temp;	/* temporary pointer to position in line	     */
+	ee_char *temp;	/* temporary pointer to position in line	     */
 	int abs_column;	/* offset in screen units from begin of line	     */
 	int column;	/* horizontal position on screen		     */
 	int row;	/* vertical position on screen			     */
@@ -1092,22 +1097,22 @@ draw_line(int vertical, int horiz, unsigned char *ptr, int t_pos, int length)
 	}
 	wmove(text_win, row, column);
 	wclrtoeol(text_win);
-	while ((posit < length) && (column <= last_col))
-	{
-		if (!isprint(*temp))
-		{
-			column += len_char(*temp, abs_column);
-			abs_column += out_char(text_win, *temp, abs_column);
-		}
-		else
-		{
-			abs_column++;
-			column++;
-			waddch(text_win, *temp);
-		}
-		posit++;
-		temp++;
-	}
+        while ((posit < length) && (column <= last_col))
+        {
+                if (!iswprint(*temp))
+                {
+                        column += len_char(*temp, abs_column);
+                        abs_column += out_char(text_win, *temp, abs_column);
+                }
+                else
+                {
+                        abs_column += wcwidth(*temp);
+                        column += wcwidth(*temp);
+                        waddnwstr(text_win, temp, 1);
+                }
+                posit++;
+                temp++;
+        }
 	if (column < last_col)
 		wclrtoeol(text_win);
 	wmove(text_win, vertical, (horiz - horiz_offset));
@@ -1121,15 +1126,15 @@ insert_line(int disp)
         start_action(ACT_INSERT);
         int temp_pos;
         int temp_pos2;
-	unsigned char *temp;
-	unsigned char *extra;
+	ee_char *temp;
+	ee_char *extra;
 	struct text *temp_nod;
 
 	text_changes = TRUE;
 	wmove(text_win, scr_vert, (scr_horz - horiz_offset));
 	wclrtoeol(text_win);
 	temp_nod= txtalloc();
-	temp_nod->line = extra= malloc(10);
+	temp_nod->line = extra= malloc(10 * sizeof(ee_char));
 	temp_nod->line_length = 1;
 	temp_nod->max_length = 10;
 	temp_nod->line_number = curr_line->line_number + 1;
@@ -1210,8 +1215,8 @@ name_alloc(void)
 }
 
 /* move to next word in string		*/
-unsigned char *
-next_word(unsigned char *string)
+ee_char *
+next_word(ee_char *string)
 {
 	while ((*string != '\0') && ((*string != 32) && (*string != 9)))
 		string++;
@@ -1990,14 +1995,14 @@ get_string(char *prompt, int advance)
 			}
 			*nam_str = in;
 			g_pos++;
-			if (!isprint((unsigned char)in) && (g_horz < (last_col - 1)))
-				g_horz += out_char(com_win, in, g_horz);
-			else
-			{
-				g_horz++;
-				if (g_horz < (last_col - 1))
-					waddch(com_win, (unsigned char)in);
-			}
+                       if (!iswprint(in) && (g_horz < (last_col - 1)))
+                                g_horz += out_char(com_win, in, g_horz);
+                       else
+                       {
+                               g_horz++;
+                               if (g_horz < (last_col - 1))
+                                       waddnwstr(com_win, &in, 1);
+                       }
 			nam_str++;
 		}
 		wrefresh(com_win);
@@ -2037,8 +2042,8 @@ compare(char *string1, char *string2, int sensitive)
 		}
 		else
 		{
-			if (toupper((unsigned char)*strng1) != toupper((unsigned char)*strng2))
-				equal = FALSE;
+                       if (towupper(*strng1) != towupper(*strng2))
+                               equal = FALSE;
 		}
 		strng1++;
 		strng2++;
@@ -2107,7 +2112,7 @@ goto_line(char *cmd_str)
 
 /* put current line in middle of screen	*/
 void 
-midscreen(int line, unsigned char *pnt)
+midscreen(int line, ee_char *pnt)
 {
 	struct text *mid_line;
 	int i;
@@ -2333,11 +2338,16 @@ get_file(char *file_name)
 	else
 		append = TRUE;
 	can_read = FALSE;		/* test if file has any characters  */
-	while (((length = read(get_fd, in_string, 512)) != 0) && (length != -1))
-	{
-		can_read = TRUE;  /* if set file has at least 1 character   */
-		get_line(length, in_string, &append);
-	}
+        ee_char wbuf[513];
+        while (((length = read(get_fd, in_string, 512)) != 0) && (length != -1))
+        {
+                can_read = TRUE;  /* if set file has at least 1 character   */
+                in_string[length] = '\0';
+                int wlen = mbstowcs(wbuf, in_string, 513);
+                if (wlen < 0)
+                        wlen = 0;
+                get_line(wlen, wbuf, &append);
+        }
 	if ((can_read) && (curr_line->line_length == 1))
 	{
 		temp_line = curr_line->prev_line;
@@ -2369,10 +2379,10 @@ get_file(char *file_name)
 
 /* read string and split into lines */
 void 
-get_line(int length, unsigned char *in_string, int *append)
+get_line(int length, ee_char *in_string, int *append)
 {
-	unsigned char *str1;
-	unsigned char *str2;
+	ee_char *str1;
+	ee_char *str2;
 	int num;		/* offset from start of string		*/
 	int char_count;		/* length of new line (or added portion	*/
 	int temp_counter;	/* temporary counter value		*/
@@ -2413,7 +2423,7 @@ get_line(int length, unsigned char *in_string, int *append)
 			if (tline->next_line != NULL)
 				tline->next_line->prev_line = tline;
 			curr_line = tline;
-			curr_line->line = point = (unsigned char *) malloc(char_count);
+                        curr_line->line = point = malloc(char_count * sizeof(ee_char));
 			curr_line->line_length = char_count;
 			curr_line->max_length = char_count;
 		}
@@ -2439,7 +2449,7 @@ void
 draw_screen()		/* redraw the screen from current postion	*/
 {
 	struct text *temp_line;
-	unsigned char *line_out;
+	ee_char *line_out;
 	int temp_vert;
 
 	temp_line = curr_line;
@@ -2505,7 +2515,7 @@ quit(int noverify)
 	if ((text_changes) && (!noverify))
 	{
 		ans = get_string(changes_made_prompt, TRUE);
-		if (toupper((unsigned char)*ans) == toupper((unsigned char)*yes_char))
+               if (towupper(*ans) == towupper(*yes_char))
 			text_changes = FALSE;
 		else
 			return(0);
@@ -2579,7 +2589,7 @@ write_file(char *file_name, int warn_if_exists)
 		if ((temp_fp = fopen(file_name, "r")))
 		{
 			tmp_point = get_string(file_exists_prompt, TRUE);
-			if (toupper((unsigned char)*tmp_point) == toupper((unsigned char)*yes_char))
+                        if (towupper(*tmp_point) == towupper(*yes_char))
 				write_flag = TRUE;
 			else 
 				write_flag = FALSE;
@@ -2608,22 +2618,20 @@ write_file(char *file_name, int warn_if_exists)
 			wprintw(com_win, writing_file_msg, file_name);
 			wrefresh(com_win);
 			cr = '\n';
-			out_line = first_line;
-			while (out_line != NULL)
-			{
-				temp_pos = 1;
-				tmp_point= out_line->line;
-				while (temp_pos < out_line->line_length)
-				{
-					putc(*tmp_point, temp_fp);
-					tmp_point++;
-					temp_pos++;
-				}
-				charac += out_line->line_length;
-				out_line = out_line->next_line;
-				putc(cr, temp_fp);
-				lines++;
-			}
+                        out_line = first_line;
+                        while (out_line != NULL)
+                        {
+                                size_t bytes;
+                                char mbbuf[4096];
+                                bytes = wcstombs(mbbuf, out_line->line, sizeof(mbbuf));
+                                if (bytes == (size_t)-1)
+                                        bytes = 0;
+                                fwrite(mbbuf, 1, bytes, temp_fp);
+                                charac += bytes;
+                                out_line = out_line->next_line;
+                                putc(cr, temp_fp);
+                                lines++;
+                        }
 			fclose(temp_fp);
 			wmove(com_win,0,0);
 			wclrtoeol(com_win);
@@ -2679,7 +2687,7 @@ search(int display_message)
 			else		/* if not case sensitive	*/
 			{
 				srch_3 = u_srch_str;
-			while ((toupper(*srch_2) == *srch_3) && (*srch_3 != '\0'))
+                        while ((towupper(*srch_2) == *srch_3) && (*srch_3 != '\0'))
 				{
 					found = TRUE;
 					srch_2++;
@@ -2761,13 +2769,13 @@ search_prompt(void)
 	srch_str = get_string(search_prompt_str, FALSE);
 	gold = FALSE;
 	srch_3 = srch_str;
-	srch_1 = u_srch_str = malloc(strlen(srch_str) + 1);
+	srch_1 = u_srch_str = malloc((wcslen(srch_str) + 1) * sizeof(ee_char));
 	while (*srch_3 != '\0')
-	{
-		*srch_1 = toupper(*srch_3);
-		srch_1++;
-		srch_3++;
-	}
+        {
+                *srch_1 = towupper(*srch_3);
+                srch_1++;
+                srch_3++;
+        }
 	*srch_1 = '\0';
 	search(TRUE);
 }
@@ -2793,13 +2801,13 @@ del_word(void)
         start_action(ACT_DEL_WORD);
         int tposit;
         int difference;
-	unsigned char *d_word2;
-	unsigned char *d_word3;
-	unsigned char tmp_char[3];
+	ee_char *d_word2;
+	ee_char *d_word3;
+	ee_char tmp_char[3];
 
 	if (d_word != NULL)
 		free(d_word);
-	d_word = malloc(curr_line->line_length);
+	d_word = malloc(curr_line->line_length * sizeof(ee_char));
 	tmp_char[0] = d_char[0];
 	tmp_char[1] = d_char[1];
 	tmp_char[2] = d_char[2];
@@ -2849,10 +2857,10 @@ undel_word(void)
         start_action(ACT_UNDEL_WORD);
         int temp;
         int tposit;
-	unsigned char *tmp_old_ptr;
-	unsigned char *tmp_space;
-	unsigned char *tmp_ptr;
-	unsigned char *d_word_ptr;
+	ee_char *tmp_old_ptr;
+	ee_char *tmp_space;
+	ee_char *tmp_ptr;
+	ee_char *d_word_ptr;
 
 	/*
 	 |	resize line to handle undeleted word
@@ -2911,13 +2919,13 @@ void
 del_line(void)
 {
         start_action(ACT_DEL_LINE);
-        unsigned char *dl1;
-        unsigned char *dl2;
+        ee_char *dl1;
+        ee_char *dl2;
 	int tposit;
 
 	if (d_line != NULL)
 		free(d_line);
-	d_line = malloc(curr_line->line_length);
+	d_line = malloc(curr_line->line_length * sizeof(ee_char));
 	dl1 = d_line;
 	dl2 = point;
 	tposit = position;
@@ -2946,8 +2954,8 @@ void
 undel_line(void)
 {
         start_action(ACT_UNDEL_LINE);
-        unsigned char *ud1;
-        unsigned char *ud2;
+        ee_char *ud1;
+        ee_char *ud2;
 	int tposit;
 
 	if (dlt_line->line_length == 0)
@@ -3914,7 +3922,7 @@ redraw(void)
 int 
 Blank_Line(struct text *test_line)
 {
-	unsigned char *line;
+	ee_char *line;
 	int length;
 	
 	if (test_line == NULL)
@@ -3953,11 +3961,11 @@ Format(void)
 	int status;
 	int tmp_af;
 	int counter;
-	unsigned char *line;
-	unsigned char *tmp_srchstr;
-	unsigned char *temp1, *temp2;
-	unsigned char *temp_dword;
-	unsigned char temp_d_char[3];
+	ee_char *line;
+	ee_char *tmp_srchstr;
+	ee_char *temp1, *temp2;
+	ee_char *temp_dword;
+	ee_char temp_d_char[3];
 
 	temp_d_char[0] = d_char[0];
 	temp_d_char[1] = d_char[1];
@@ -3995,7 +4003,7 @@ Format(void)
 	temp_case = case_sen;
 	case_sen = TRUE;
 	tmp_srchstr = srch_str;
-	temp2 = srch_str = (unsigned char *) malloc(1 + curr_line->line_length - position);
+	temp2 = srch_str = (ee_char *) malloc((1 + curr_line->line_length - position) * sizeof(ee_char));
 	if ((*point == ' ') || (*point == '\t'))
 		adv_word();
 	offset -= position;
@@ -4166,7 +4174,7 @@ Format(void)
 	wrefresh(com_win);
 }
 
-unsigned char *init_name[3] = {
+ee_char *init_name[3] = {
 	"/usr/share/misc/init.ee", 
 	NULL, 
 	".init.ee"
@@ -4177,9 +4185,9 @@ void
 ee_init(void)
 {
 	FILE *init_file;
-	unsigned char *string;
-	unsigned char *str1;
-	unsigned char *str2;
+	ee_char *string;
+	ee_char *str1;
+	ee_char *str2;
 	char *home;
 	int counter;
 	int temp_int;
@@ -4507,7 +4515,7 @@ int
 first_word_len(struct text *test_line)
 {
 	int counter;
-	unsigned char *pnt;
+	ee_char *pnt;
 
 	if (test_line == NULL)
 		return(0);
@@ -4553,12 +4561,12 @@ Auto_Format(void)
 	int status;
 	int counter;
 	char not_blank;
-	unsigned char *line;
-	unsigned char *tmp_srchstr;
-	unsigned char *temp1, *temp2;
-	unsigned char *temp_dword;
-	unsigned char temp_d_char[3];
-	unsigned char *tmp_d_line;
+	ee_char *line;
+	ee_char *tmp_srchstr;
+	ee_char *temp1, *temp2;
+	ee_char *temp_dword;
+	ee_char temp_d_char[3];
+	ee_char *tmp_d_line;
 
 
 	temp_d_char[0] = d_char[0];
@@ -4592,7 +4600,7 @@ Auto_Format(void)
 	temp_case = case_sen;
 	case_sen = TRUE;
 	tmp_srchstr = srch_str;
-	temp2 = srch_str = (unsigned char *) malloc(1 + curr_line->line_length - position);
+	temp2 = srch_str = (ee_char *) malloc((1 + curr_line->line_length - position) * sizeof(ee_char));
 	if ((*point == ' ') || (*point == '\t'))
 		adv_word();
 	offset -= position;

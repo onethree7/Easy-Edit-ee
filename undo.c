@@ -34,8 +34,8 @@ static struct text *clone_text_list(struct text *src, struct text **out_curr,
     struct text *head = NULL, *prev = NULL, *curr = NULL;
     while (src != NULL) {
         struct text *node = txtalloc();
-        node->line = malloc(src->max_length);
-        memcpy(node->line, src->line, src->line_length + 1);
+        node->line = malloc(src->max_length * sizeof(ee_char));
+        memcpy(node->line, src->line, (src->line_length + 1) * sizeof(ee_char));
         node->line_length = src->line_length;
         node->max_length = src->max_length;
         node->line_number = src->line_number;
