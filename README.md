@@ -41,7 +41,7 @@ See the built-in help (`help` command or `^c`) for keybindings.
 - Portable codebase for basic editing needs
 - Retains much of the classic BSD behavior and keymap
 - Expanded undo/redo history (up to 1000 steps)
-- Smarter undo grouping across consecutive edits
+- Smarter undo grouping across consecutive edits (you can undo large blocks of text)
 
 ## Porting Notes
 
