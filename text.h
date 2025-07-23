@@ -1,8 +1,12 @@
 #ifndef TEXT_H
 #define TEXT_H
 
+#include <wchar.h>
+
+typedef wchar_t ee_char;
+
 struct text {
-    unsigned char *line;
+    ee_char *line;
     int line_number;
     int line_length;
     int max_length;
@@ -15,7 +19,7 @@ extern struct text *dlt_line;
 extern struct text *curr_line;
 extern struct text *tmp_line;
 extern struct text *srch_line;
-extern unsigned char *point;
+extern ee_char *point;
 extern int position;
 extern int absolute_lin;
 extern int scr_vert;
