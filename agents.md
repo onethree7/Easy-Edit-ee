@@ -1,6 +1,7 @@
 # Contributor Guidelines for the `ee` editor
 
 This document collects ideas and instructions for implementing future improvements. Follow these when adding features or refactoring the code.
+After reading this guide, consult `charaters.md` for the current UTF-8 plan and progress.
 
 ## Repository Clean‑up
 
