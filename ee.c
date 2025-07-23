@@ -275,7 +275,8 @@ void print_buffer(void);
 void command_prompt(void);
 void command(char *cmd_str1);
 int scan(char *line, int offset, int column);
-char *get_string(char *prompt, int advance);
+int scan_w(ee_char *line, int offset, int column);
+char *get_string(const char *prompt, int advance);
 int compare(char *string1, char *string2, int sensitive);
 void goto_line(char *cmd_str);
 void midscreen(int line, ee_char *pnt);
@@ -1933,7 +1934,7 @@ command(char *cmd_str1)
 }
 
 /* determine horizontal position for get_string	*/
-int 
+int
 scan(char *line, int offset, int column)
 {
 	char *stemp;
@@ -1952,86 +1953,103 @@ scan(char *line, int offset, int column)
 	return(j);
 }
 
-/* read string from input on command line */
-char *
-get_string(char *prompt, int advance)
+/* determine horizontal position for wide string */
+int
+scan_w(ee_char *line, int offset, int column)
 {
-	char *string;
-	char *tmp_string;
-	char *nam_str;
-	char *g_point;
-	int tmp_int;
-	int g_horz, g_position, g_pos;
-	int esc_flag;
-
-	g_point = tmp_string = malloc(512);
-	wmove(com_win,0,0);
-	wclrtoeol(com_win);
-	waddstr(com_win, prompt);
-	wrefresh(com_win);
-	nam_str = tmp_string;
-	clear_com_win = TRUE;
-	g_horz = g_position = scan(prompt, strlen(prompt), 0);
-	g_pos = 0;
-	do
-	{
-		esc_flag = FALSE;
-		in = wgetch(com_win);
-		if (in == -1)
-			exit(0);
-		if (((in == 8) || (in == 127) || (in == KEY_BACKSPACE)) && (g_pos > 0))
-		{
-			tmp_int = g_horz;
-			g_pos--;
-			g_horz = scan(g_point, g_pos, g_position);
-			tmp_int = tmp_int - g_horz;
-			for (; 0 < tmp_int; tmp_int--)
-			{
-				if ((g_horz+tmp_int) < (last_col - 1))
-				{
-					waddch(com_win, '\010');
-					waddch(com_win, ' ');
-					waddch(com_win, '\010');
-				}
-			}
-			nam_str--;
-		}
-		else if ((in != 8) && (in != 127) && (in != '\n') && (in != '\r') && (in < 256))
-		{
-			if (in == '\026')	/* control-v, accept next character verbatim	*/
-			{			/* allows entry of ^m, ^j, and ^h	*/
-				esc_flag = TRUE;
-				in = wgetch(com_win);
-				if (in == -1)
-					exit(0);
-			}
-			*nam_str = in;
-			g_pos++;
-                       if (!iswprint(in) && (g_horz < (last_col - 1)))
-                                g_horz += out_char(com_win, in, g_horz);
-                       else
-                       {
-                               g_horz++;
-                               if (g_horz < (last_col - 1))
-                                       waddnwstr(com_win, &in, 1);
-                       }
-			nam_str++;
-		}
-		wrefresh(com_win);
-		if (esc_flag)
-			in = '\0';
-	} while ((in != '\n') && (in != '\r'));
-	*nam_str = '\0';
-	nam_str = tmp_string;
-	if (((*nam_str == ' ') || (*nam_str == 9)) && (advance))
-		nam_str = next_ascii_word(nam_str);
-	string = malloc(strlen(nam_str) + 1);
-	strcpy(string, nam_str);
-	free(tmp_string);
-	wrefresh(com_win);
-	return(string);
+    ee_char *stemp = line;
+    int i = 0;
+    int j = column;
+    while (i < offset)
+    {
+        i++;
+        j += len_char(*stemp, j);
+        stemp++;
+    }
+    return j;
 }
 
+
+/* read string from input on command line */
+char *
+get_string(const char *prompt, int advance)
+{
+        char *string;
+        ee_char *tmp_string;
+        ee_char *nam_str;
+        ee_char *g_point;
+        int tmp_int;
+        int g_horz, g_position, g_pos;
+        int esc_flag;
+        wint_t win;
+
+        g_point = tmp_string = malloc(512 * sizeof(ee_char));
+        wmove(com_win,0,0);
+        wclrtoeol(com_win);
+        waddstr(com_win, prompt);
+        wrefresh(com_win);
+        nam_str = tmp_string;
+        clear_com_win = TRUE;
+        g_horz = g_position = scan((char *)prompt, strlen(prompt), 0);
+        g_pos = 0;
+        do
+        {
+                esc_flag = FALSE;
+                if (wget_wch(com_win, &win) == ERR)
+                        exit(0);
+                if (((win == 8) || (win == 127) || (win == KEY_BACKSPACE)) && (g_pos > 0))
+                {
+                        tmp_int = g_horz;
+                        g_pos--;
+                        g_horz = scan_w(g_point, g_pos, g_position);
+                        tmp_int = tmp_int - g_horz;
+                        for (; 0 < tmp_int; tmp_int--)
+                        {
+                                if ((g_horz+tmp_int) < (last_col - 1))
+                                {
+                                        waddch(com_win, '\010');
+                                        waddch(com_win, ' ');
+                                        waddch(com_win, '\010');
+                                }
+                        }
+                        nam_str--;
+                }
+                else if ((win != 8) && (win != 127) && (win != '\n') && (win != '\r'))
+                {
+                        if (win == 0x16)       /* control-v */
+                        {
+                                esc_flag = TRUE;
+                                if (wget_wch(com_win, &win) == ERR)
+                                        exit(0);
+                        }
+                        *nam_str = (ee_char)win;
+                        g_pos++;
+                       if (!iswprint(win) && (g_horz < (last_col - 1)))
+                                g_horz += out_char(com_win, win, g_horz);
+                       else
+                       {
+                               int w = wcwidth(win);
+                               g_horz += (w > 0 ? w : 1);
+                               if (g_horz < (last_col - 1))
+                                       waddnwstr(com_win, (wchar_t *)&win, 1);
+                       }
+                        nam_str++;
+                }
+                wrefresh(com_win);
+                if (esc_flag)
+                        win = '\0';
+        } while ((win != '\n') && (win != '\r'));
+        *nam_str = L'\0';
+        nam_str = tmp_string;
+        size_t bytes = wcstombs(NULL, nam_str, 0);
+        string = malloc(bytes + 1);
+        wcstombs(string, nam_str, bytes + 1);
+        free(tmp_string);
+        if (((*string == ' ') || (*string == '\t')) && advance)
+                string = next_ascii_word(string);
+        wrefresh(com_win);
+        return(string);
+}
 /* compare two strings	*/
 int 
 compare(char *string1, char *string2, int sensitive)

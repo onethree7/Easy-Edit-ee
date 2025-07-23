@@ -10,6 +10,8 @@ The goal is full UTF-8 awareness so that international text edits correctly. Aft
 - Switched the build to `ncursesw` and enabled locale setup with a fallback to `C.UTF-8`.
 - Added multibyte conversions for search prompts and other input paths.
 - Replaced ASCII-only parsing routines with `next_ascii_word` and adjusted file-name handling to stay `char` based.
+- Implemented wide-character command prompts using `wget_wch` so filenames and search strings accept UTF-8 input.
+- Created a helper `scan_w` to compute cursor offsets for multibyte strings.
 - Verified the editor builds after these refactors.
 
 ## Roadmap
@@ -24,8 +26,7 @@ Emoji support and other exotic glyphs remain out of scope for now.
 
 ## Outstanding gaps
 
-- Some input paths still treat characters as bytes which causes corruption for non-ASCII text.
-- `new_curse.c` has not been adapted to use wide-character output.
+- Parts of `new_curse.c` still rely on byte-oriented buffers and must be updated for wide output.
 - Undo history does not yet store UTF‑8 text reliably.
 - Testing coverage for multi-byte sequences is minimal.
 
