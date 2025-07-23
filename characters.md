@@ -13,6 +13,27 @@ The goal is full UTF-8 awareness so that international text edits correctly. Aft
 - Implemented wide-character command prompts using `wget_wch` so filenames and search strings accept UTF-8 input.
 - Created a helper `scan_w` to compute cursor offsets for multibyte strings.
 - Verified the editor builds after these refactors.
+- Locale initialization now verifies a UTF-8 codeset and warns if unavailable. It first tries the user's locale settings and then falls back to `C.UTF-8`, `en_US.UTF-8`, and `en_US.utf8`.
+- Reworked `scanline` to use `len_char` for width calculation. This finally
+  handles characters like ä ö ü Ä Ö Ü ß é ç ñ ł š ž œ æ – — „ “ « あ 日 한 你 а я α Ω ا א
+  without falling back to ASCII rules. `grep -n scanline` confirms all uses
+  point to the wide-aware version.
+
+Example check:
+
+```
+$ grep -n scanline ee.c
+252:void scanline(ee_char *pos);
+860:                scanline(tp);
+```
+
+`init_locale` is invoked from the initialization routine only once:
+
+```
+$ grep -n init_locale ee.c
+341:static void init_locale(void);
+5152:        init_locale();
+```
 
 ## Roadmap
 
