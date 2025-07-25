@@ -66,6 +66,7 @@ char *version = "@(#) ee, version "  EE_VERSION  " $Revision: 1.104 $";
 /* ---- Always use Linux ncurses directly ---- */
 #include <ncursesw/curses.h>
 #include <wctype.h>
+#include <langinfo.h>
 
 /* ---- Standard system headers ---- */
 #include <ctype.h>
@@ -337,6 +338,7 @@ char *resolve_name(char *name);
 int restrict_mode(void);
 int unique_test(char *string, char *list[]);
 void strings_init(void);
+static void init_locale(void);
 
 #undef P_
 /*
@@ -788,7 +790,7 @@ insert(int character)
 	}
 	*point = character;	/* insert new character			*/
 	wclrtoeol(text_win);
-       if (!iswprint(character)) /* check for TAB character*/
+       if (!iswprint(character))
        {
                scr_pos = scr_horz += out_char(text_win, character, scr_horz);
                point++;
@@ -796,10 +798,13 @@ insert(int character)
        }
        else
        {
+               int w = wcwidth(character);
+               if (w < 0)
+                       w = 1;
                waddnwstr(text_win, &character, 1);
-               scr_pos = ++scr_horz;
+               scr_pos = scr_horz += w;
                point++;
-               position ++;
+               position++;
        }
 
 	if ((observ_margins) && (right_margin < scr_pos))
@@ -840,51 +845,37 @@ void
 delete(int disp)
 {
         start_action(ACT_DELETE);
-        ee_char *tp;
-        ee_char *temp2;
-	struct text *temp_buff;
-	int temp_vert;
-	int temp_pos;
-	int del_width = 1;
+       ee_char *tp;
+       ee_char *temp2;
+       struct text *temp_buff;
+       int temp_vert;
+       int temp_pos;
 
 	if (point != curr_line->line)	/* if not at beginning of line	*/
 	{
 		text_changes = TRUE;
-		temp2 = tp = point;
-		if ((ee_chinese) && (position >= 2) && (*(point - 2) > 127))
-		{
-			del_width = 2;
-		}
-		tp -= del_width;
-		point -= del_width;
-		position -= del_width;
-		temp_pos = position;
-		curr_line->line_length -= del_width;
-		if ((*tp < ' ') || (*tp >= 127))	/* check for TAB */
-			scanline(tp);
-		else
-			scr_horz -= del_width;
-		scr_pos = scr_horz;
-		if (in == 8)
-		{
-			if (del_width == 1)
-				*d_char = *point; /* save deleted character  */
-			else
-			{
-				d_char[0] = *point;
-				d_char[1] = *(point + 1);
-			}
-			d_char[del_width] = '\0';
-		}
-		while (temp_pos <= curr_line->line_length)
-		{
-			temp_pos++;
-			*tp = *temp2;
-			tp++;
-			temp2++;
-		}
-		if ((scr_horz < horiz_offset) && (horiz_offset > 0))
-		{
+                temp2 = tp = point;
+                tp--;
+                point--;
+                position--;
+                temp_pos = position;
+                curr_line->line_length--;
+                scanline(tp);
+                scr_pos = scr_horz;
+                if (in == 8)
+                {
+                        *d_char = *point;
+                        d_char[1] = L'\0';
+                }
+                while (temp_pos <= curr_line->line_length)
+                {
+                        temp_pos++;
+                        *tp = *temp2;
+                        tp++;
+                        temp2++;
+                }
+                if ((scr_horz < horiz_offset) && (horiz_offset > 0))
+                {
 			horiz_offset -= 8;
 			midscreen(scr_vert, point);
 		}
@@ -947,30 +938,15 @@ delete(int disp)
 void 
 scanline(ee_char *pos)
 {
-	int temp;
-	ee_char *ptr;
+       int temp = 0;
+       ee_char *ptr = curr_line->line;
 
-	ptr = curr_line->line;
-	temp = 0;
-	while (ptr < pos)
-	{
-		if (*ptr <= 8)
-			temp += 2;
-		else if (*ptr == 9)
-			temp += tabshift(temp);
-		else if ((*ptr >= 10) && (*ptr <= 31))
-			temp += 2;
-		else if ((*ptr >= 32) && (*ptr < 127))
-			temp++;
-		else if (*ptr == 127)
-			temp += 2;
-		else if (!eightbit)
-			temp += 5;
-		else
-			temp++;
-		ptr++;
-	}
-	scr_horz = temp;
+       while (ptr < pos)
+       {
+               temp += len_char(*ptr, temp);
+               ptr++;
+       }
+       scr_horz = temp;
 	if ((scr_horz - horiz_offset) > last_col)
 	{
 		horiz_offset = (scr_horz - (scr_horz % 8)) - (COLS - 8);
@@ -5150,6 +5126,38 @@ catgetlocal(int number, char *string)
 	return(temp1);
 }
 #endif /* NO_CATGETS */
+/* Ensure the process runs in a UTF-8 locale.  Try the current environment and common fallbacks. Print a warning if no UTF-8 locale is available. */
+static void
+init_locale(void)
+{
+    const char *res;
+
+    /* try the user's environment first */
+    res = setlocale(LC_ALL, "");
+    if (res && strstr(nl_langinfo(CODESET), "UTF-8"))
+        return;
+
+    const char *env_vars[] = {"LC_ALL", "LC_CTYPE", "LANG", NULL};
+    for (int i = 0; env_vars[i]; i++) {
+        const char *val = getenv(env_vars[i]);
+        if (!val || !*val)
+            continue;
+        res = setlocale(LC_ALL, val);
+        if (res && strstr(nl_langinfo(CODESET), "UTF-8"))
+            return;
+    }
+
+    const char *candidates[] = {"C.UTF-8", "en_US.UTF-8", "en_US.utf8", NULL};
+    for (int i = 0; candidates[i]; i++) {
+        res = setlocale(LC_ALL, candidates[i]);
+        if (res && strstr(nl_langinfo(CODESET), "UTF-8"))
+            return;
+    }
+
+    fprintf(stderr,
+            "Warning: unable to select a UTF-8 locale. Some characters may not display correctly.\n");
+}
+
 
 /*
  |	The following is to allow for using message catalogs which allow 
@@ -5161,12 +5169,10 @@ catgetlocal(int number, char *string)
 void 
 strings_init(void)
 {
-	int counter;
-
-    if (!setlocale(LC_ALL, ""))
-        setlocale(LC_ALL, "C.UTF-8");
+        int counter;
+        init_locale();
 #ifndef NO_CATGETS
-	catalog = catopen("ee", NL_CAT_LOCALE);
+        catalog = catopen("ee", NL_CAT_LOCALE);
 #endif /* NO_CATGETS */
 
 	modes_menu[0].item_string = catgetlocal( 1, "modes menu");

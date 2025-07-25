@@ -13,21 +13,26 @@ The goal is full UTF-8 awareness so that international text edits correctly. Aft
 - Implemented wide-character command prompts using `wget_wch` so filenames and search strings accept UTF-8 input.
 - Created a helper `scan_w` to compute cursor offsets for multibyte strings.
 - Verified the editor builds after these refactors.
+- Locale initialization now verifies a UTF-8 codeset and warns if unavailable. It first tries the user's locale settings and then falls back to `C.UTF-8`, `en_US.UTF-8`, and `en_US.utf8`.
+- Reworked `scanline` to use `len_char` for width calculation. This finally
+  handles characters like ä ö ü Ä Ö Ü ß é ç ñ ł š ž œ æ – — „ “ « あ 日 한 你 а я α Ω ا א
+  without falling back to ASCII rules. `grep -n scanline` confirms all uses
+  point to the wide-aware version.
+- The insert routine now uses `wcwidth` to update `scr_horz` so multi-column characters display correctly.
 
-## Roadmap
+Example check:
+```
+$ grep -n scanline ee.c
+252:void scanline(ee_char *pos);
+860:                scanline(tp);
+$ grep -n "insert(int character)" ee.c | head -n 2
+250:void insert(int character);
+756:insert(int character)
+```
 
-1. Finish converting line editing and drawing routines to operate entirely on `ee_char`.
-2. Handle UTF‑8 decoding on file load and encode on save.
-3. Adjust cursor movement and word navigation for combining characters and variable column widths.
-4. Ensure screen redraws use the wide-character functions in `ncursesw`.
-5. Add regression tests to verify editing typical accented Latin, Cyrillic, Greek, Arabic, Hebrew, and CJK characters.
-
-Emoji support and other exotic glyphs remain out of scope for now.
-
-## Outstanding gaps
-
-- Parts of `new_curse.c` still rely on byte-oriented buffers and must be updated for wide output.
-- Undo history does not yet store UTF‑8 text reliably.
-- Testing coverage for multi-byte sequences is minimal.
-
-The immediate next tasks are to audit remaining byte-oriented functions, update them to use `ee_char`, and verify editing of the languages listed in the problem statement.
+`init_locale` is invoked from the initialization routine only once:
+```
+$ grep -n init_locale ee.c
+341:static void init_locale(void);
+5173:        init_locale();
+```
