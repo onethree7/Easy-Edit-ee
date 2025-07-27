@@ -5,7 +5,6 @@
 #include "undo.h"
 
 /* use the globals from ee.c */
-
 extern void draw_screen(void);
 extern void redraw(void);
 extern struct text *txtalloc(void);

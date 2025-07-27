@@ -113,6 +113,7 @@ nl_catd catalog;
 
 #include "buffer.h"
 #include "fileio.h"
+#include "screen.h"
 struct text *first_line;
 struct text *dlt_line;
 struct text *curr_line;
@@ -251,10 +252,8 @@ int scan_w(ee_char *line, int offset, int column);
 char *get_string(const char *prompt, int advance);
 int compare(char *string1, char *string2, int sensitive);
 void goto_line(char *cmd_str);
-void midscreen(int line, ee_char *pnt);
 void get_options(int numargs, char *arguments[]);
 void check_fp(void);
-void draw_screen(void);
 void finish(void);
 int quit(int noverify);
 void edit_abort(int arg);
@@ -279,17 +278,12 @@ void bol(void);
 void adv_line(void);
 void sh_command(char *string);
 void set_up_term(void);
-void resize_check(void);
 int menu_op(struct menu_entries *);
 void paint_menu(struct menu_entries menu_list[], int max_width, int max_height, int list_size, int top_offset, WINDOW *menu_win, int off_start, int vert_size);
 void help(void);
-void paint_info_win(void);
-void no_info_window(void);
-void create_info_window(void);
 int file_op(int arg);
 void shell_op(void);
 void leave_op(void);
-void redraw(void);
 int Blank_Line(struct text *test_line);
 void Format(void);
 void ee_init(void);
@@ -933,142 +927,6 @@ scanline(ee_char *pos)
 	}
 }
 
-/* give the number of spaces to shift	*/
-int 
-tabshift(int temp_int)
-{
-	int leftover;
-
-	leftover = ((temp_int + 1) % 8);
-	if (leftover == 0)
-		return (1);
-	else
-		return (9 - leftover);
-}
-
-/* output non-printing character */
-int
-out_char(WINDOW *window, ee_char character, int column)
-{
-        int i1, i2;
-        char *string;
-        char string2[16];
-
-	if (character == TAB)
-	{
-		i1 = tabshift(column);
-		for (i2 = 0; 
-		  (i2 < i1) && (((column+i2+1)-horiz_offset) < last_col); i2++)
-		{
-			waddch(window, ' ');
-		}
-		return(i1);
-	}
-        else if ((character >= L'\0') && (character < L' '))
-        {
-                string = table[(int) character];
-        }
-        else if (!iswprint(character))
-        {
-                if (character == 127)
-                        string = "^?";
-                else if (!eightbit)
-                {
-                        snprintf(string2, sizeof(string2), "<%x>", (unsigned int)character);
-                        string = string2;
-                }
-                else
-                {
-                        waddnwstr(window, &character, 1);
-                        return(1);
-                }
-        }
-        else
-        {
-                waddnwstr(window, &character, 1);
-                i1 = wcwidth(character);
-                return(i1 > 0 ? i1 : 1);
-        }
-        for (i2 = 0; (string[i2] != '\0') && (((column+i2+1)-horiz_offset) < last_col); i2++)
-                waddch(window, (unsigned char)string[i2]);
-        return(strlen(string));
-}
-
-/* return the length of the character	*/
-int
-len_char(ee_char character, int column)
-{
-	int length;
-
-        if (character == '\t')
-                length = tabshift(column);
-        else {
-                int w = wcwidth(character);
-                if (w > 0)
-                        length = w;
-                else if ((character >= 0 && character < 32) || character == 127)
-                        length = 2;
-                else if (!eightbit)
-                        length = 5;
-                else
-                        length = 1;
-        }
-
-	return(length);
-}
-
-/* redraw line from current position */
-void 
-draw_line(int vertical, int horiz, ee_char *ptr, int t_pos, int length)
-{
-	int d;		/* partial length of special or tab char to display  */
-	ee_char *temp;	/* temporary pointer to position in line	     */
-	int abs_column;	/* offset in screen units from begin of line	     */
-	int column;	/* horizontal position on screen		     */
-	int row;	/* vertical position on screen			     */
-	int posit;	/* temporary position indicator within line	     */
-
-	abs_column = horiz;
-	column = horiz - horiz_offset;
-	row = vertical;
-	temp = ptr;
-	d = 0;
-	posit = t_pos;
-	if (column < 0)
-	{
-		wmove(text_win, row, 0);
-		wclrtoeol(text_win);
-	}
-	while (column < 0)
-	{
-		d = len_char(*temp, abs_column);
-		abs_column += d;
-		column += d;
-		posit++;
-		temp++;
-	}
-	wmove(text_win, row, column);
-	wclrtoeol(text_win);
-        while ((posit < length) && (column <= last_col))
-        {
-                if (!iswprint(*temp))
-                {
-                        column += len_char(*temp, abs_column);
-                        abs_column += out_char(text_win, *temp, abs_column);
-                }
-                else
-                {
-                        abs_column += wcwidth(*temp);
-                        column += wcwidth(*temp);
-                        waddnwstr(text_win, temp, 1);
-                }
-                posit++;
-                temp++;
-        }
-	if (column < last_col)
-		wclrtoeol(text_win);
-	wmove(text_win, vertical, (horiz - horiz_offset));
-}
 
 /* insert new line		*/
 void
@@ -2040,25 +1898,6 @@ goto_line(char *cmd_str)
 	wmove(text_win, scr_vert, (scr_horz - horiz_offset));
 }
 
-/* put current line in middle of screen	*/
-void 
-midscreen(int line, ee_char *pnt)
-{
-	struct text *mid_line;
-	int i;
-
-	line = min(line, last_line);
-	mid_line = curr_line;
-	for (i = 0; ((i < line) && (curr_line->prev_line != NULL)); i++)
-		curr_line = curr_line->prev_line;
-	scr_vert = scr_horz = 0;
-	wmove(text_win, 0, 0);
-	draw_screen();
-	scr_vert = i;
-	curr_line = mid_line;
-	scanline(pnt);
-	wmove(text_win, scr_vert, (scr_horz - horiz_offset));
-}
 
 /* get arguments from command line	*/
 void 
@@ -2237,28 +2076,8 @@ check_fp(void)
 
 
 void 
-draw_screen()		/* redraw the screen from current postion	*/
-{
-	struct text *temp_line;
-	ee_char *line_out;
-	int temp_vert;
-
-	temp_line = curr_line;
-	temp_vert = scr_vert;
-	wclrtobot(text_win);
-	while ((temp_line != NULL) && (temp_vert <= last_line))
-	{
-		line_out = temp_line->line;
-		draw_line(temp_vert, 0, line_out, 1, temp_line->line_length);
-		temp_vert++;
-		temp_line = temp_line->next_line;
-	}
-	wmove(text_win, temp_vert, 0);
-	wmove(text_win, scr_vert, (scr_horz - horiz_offset));
-}
 
 /* prepare to exit edit session	*/
-void 
 finish(void)
 {
 	char *file_name = in_file_name;
@@ -3125,21 +2944,6 @@ set_up_term(void)
 
 }
 
-void 
-resize_check(void)
-{
-	if ((LINES == local_LINES) && (COLS == local_COLS))
-		return;
-
-	if (info_window)
-		delwin(info_win);
-	delwin(text_win);
-	delwin(com_win);
-	delwin(help_win);
-	set_up_term();
-	redraw();
-	wrefresh(text_win);
-}
 
 static char item_alpha[] = "abcdefghijklmnopqrstuvwxyz0123456789 ";
 
@@ -3484,72 +3288,6 @@ help(void)
 	redraw();
 }
 
-void 
-paint_info_win(void)
-{
-	int counter;
-
-	if (!info_window)
-		return;
-
-	werase(info_win);
-	for (counter = 0; counter < 5; counter++)
-	{
-		wmove(info_win, counter, 0);
-		wclrtoeol(info_win);
-		if (info_type == CONTROL_KEYS)
-			waddstr(info_win, (emacs_keys_mode) ? 
-			  emacs_control_keys[counter] : control_keys[counter]);
-		else if (info_type == COMMANDS)
-			waddstr(info_win, command_strings[counter]);
-	}
-	wmove(info_win, 5, 0);
-	if (!nohighlight)
-		wstandout(info_win);
-	waddstr(info_win, separator);
-	wstandend(info_win);
-	wrefresh(info_win);
-}
-
-void 
-no_info_window(void)
-{
-	if (!info_window)
-		return;
-	delwin(info_win);
-	delwin(text_win);
-	info_window = FALSE;
-	last_line = LINES - 2;
-	text_win = newwin((LINES - 1), COLS, 0, 0);
-	keypad(text_win, TRUE);
-	idlok(text_win, TRUE);
-	clearok(text_win, TRUE);
-	midscreen(scr_vert, point);
-	wrefresh(text_win);
-	clear_com_win = TRUE;
-}
-
-void 
-create_info_window(void)
-{
-	if (info_window)
-		return;
-	last_line = LINES - 8;
-	delwin(text_win);
-	text_win = newwin((LINES - 7), COLS, 6, 0);
-	keypad(text_win, TRUE);
-	idlok(text_win, TRUE);
-	werase(text_win);
-	info_window = TRUE;
-	info_win = newwin(6, COLS, 0, 0);
-	werase(info_win);
-	info_type = CONTROL_KEYS;
-	midscreen(min(scr_vert, last_line), point);
-	clearok(info_win, TRUE);
-	paint_info_win();
-	wrefresh(text_win);
-	clear_com_win = TRUE;
-}
 
 int 
 file_op(int arg)
@@ -3648,18 +3386,6 @@ leave_op(void)
 		quit(TRUE);
 }
 
-void 
-redraw(void)
-{
-	if (info_window)
-        {
-                clearok(info_win, TRUE);
-        	paint_info_win();
-        }
-        else
-		clearok(text_win, TRUE);
-	midscreen(scr_vert, point);
-}
 
 /*
  |	The following routines will "format" a paragraph (as defined by a 
