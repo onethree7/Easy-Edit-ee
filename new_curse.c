@@ -2206,9 +2206,8 @@ WINDOW *window;
 	window->scroll_up = window->scroll_down = 0;
 	last_window_refreshed = window;
 }
-
-void 
-flushinp()			/* flush input				*/
+static void
+flushinp(void)                      /* flush input                          */
 {
 }
 
@@ -2745,8 +2744,8 @@ nonl()
 #endif
 }
 
-void 
-saveterm()
+static void
+saveterm(void)
 {
 }
 
@@ -2755,8 +2754,8 @@ fixterm()
 {
 }
 
-void 
-resetterm()
+static void
+resetterm(void)
 {
 }
 

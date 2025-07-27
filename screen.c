@@ -8,9 +8,6 @@
 #include "undo.h"
 #include "editor.h"
 
-/* needed declarations from ee.c */
-extern void scanline(ee_char *pos);
-
 #define TAB 9
 #define CONTROL_KEYS 1
 #define COMMANDS 2
@@ -282,5 +279,37 @@ void resize_check(void)
     set_up_term();
     redraw();
     wrefresh(text_win);
+}
+
+void scanline(ee_char *pos)
+{
+    int temp;
+    ee_char *ptr = curr_line->line;
+    temp = 0;
+    while (ptr < pos) {
+        if (*ptr <= 8)
+            temp += 2;
+        else if (*ptr == 9)
+            temp += tabshift(temp);
+        else if ((*ptr >= 10) && (*ptr <= 31))
+            temp += 2;
+        else if ((*ptr >= 32) && (*ptr < 127))
+            temp++;
+        else if (*ptr == 127)
+            temp += 2;
+        else if (!eightbit)
+            temp += 5;
+        else
+            temp++;
+        ptr++;
+    }
+    scr_horz = temp;
+    if ((scr_horz - horiz_offset) > last_col) {
+        horiz_offset = (scr_horz - (scr_horz % 8)) - (COLS - 8);
+        midscreen(scr_vert, point);
+    } else if (scr_horz < horiz_offset) {
+        horiz_offset = max(0, (scr_horz - (scr_horz % 8)));
+        midscreen(scr_vert, point);
+    }
 }
 

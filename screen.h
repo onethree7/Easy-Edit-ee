@@ -15,5 +15,6 @@ void midscreen(int line, ee_char *pnt);
 void resize_check(void);
 void redraw(void);
 void draw_screen(void);
+void scanline(ee_char *pos);
 
 #endif /* SCREEN_H */
