@@ -39,7 +39,6 @@ char *get_string(const char *prompt, int advance);
 /* Functions provided elsewhere */
 void right(int disp);
 void move_rel(int direction, int lines);
-void scanline(ee_char *pos);
 void midscreen(int line, ee_char *pnt);
 
 /* determine horizontal position for wide string */

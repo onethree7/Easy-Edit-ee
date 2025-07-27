@@ -117,6 +117,7 @@ nl_catd catalog;
 #include "search.h"
 #include "editor.h"
 #include "input.h"
+#include "menu.h"
 struct text *first_line;
 struct text *dlt_line;
 struct text *curr_line;
@@ -225,14 +226,7 @@ WINDOW *info_win;
  |	argument is given to the procedure when it is called.
  */
 
-struct menu_entries {
-	char *item_string;
-	int (*procedure)(struct menu_entries *);
-	struct menu_entries *ptr_argument;
-	int (*iprocedure)(int);
-	void (*nprocedure)(void);
-	int argument;
-	};
+/* menu entries defined in menu.h */
 
 void bottom(void);
 void top(void);
@@ -253,8 +247,6 @@ void finish(void);
 int quit(int noverify);
 void edit_abort(int arg);
 void delete_text(void);
-void del_char(void);
-void undel_char(void);
 void undo_action(void);
 void redo_action(void);
 void undo_push_state(void);
@@ -270,9 +262,7 @@ void eol(void);
 void bol(void);
 void adv_line(void);
 void sh_command(char *string);
-int menu_op(struct menu_entries *);
-void paint_menu(struct menu_entries menu_list[], int max_width, int max_height, int list_size, int top_offset, WINDOW *menu_win, int off_start, int vert_size);
-void help(void);
+void insert_line(int disp);
 int file_op(int arg);
 void shell_op(void);
 void leave_op(void);
@@ -285,7 +275,6 @@ void spell_op(void);
 void ispell_op(void);
 int first_word_len(struct text *test_line);
 void Auto_Format(void);
-void modes_op(void);
 char *is_in_string(char *string, char *substring);
 char *resolve_name(char *name);
 int restrict_mode(void);
@@ -298,24 +287,6 @@ int unique_test(char *string, char *list[]);
  * once. Subsequent calls in the same chunk simply update the action
  * type so mixed inserts and deletes still share one snapshot.
  */
-
-/* allocate space here for the strings that will be in the menu */
-struct menu_entries modes_menu[] = {
-        {"", NULL, NULL, NULL, NULL, 0},        /* title                */
-	{"", NULL, NULL, NULL, NULL, -1}, 	/* 1. tabs to spaces	*/
-	{"", NULL, NULL, NULL, NULL, -1}, 	/* 2. case sensitive search*/
-	{"", NULL, NULL, NULL, NULL, -1}, 	/* 3. margins observed	*/
-	{"", NULL, NULL, NULL, NULL, -1}, 	/* 4. auto-paragraph	*/
-	{"", NULL, NULL, NULL, NULL, -1}, 	/* 5. eightbit characters*/
-	{"", NULL, NULL, NULL, NULL, -1}, 	/* 6. info window	*/
-	{"", NULL, NULL, NULL, NULL, -1}, 	/* 7. emacs key bindings*/
-	{"", NULL, NULL, NULL, NULL, -1}, 	/* 8. right margin	*/
-	{"", NULL, NULL, NULL, NULL, -1}, 	/* 9. chinese text	*/
-	{"", NULL, NULL, NULL, dump_ee_conf, -1}, /* 10. save editor config */
-	{NULL, NULL, NULL, NULL, NULL, -1}	/* terminator		*/
-	};
-
-char *mode_strings[11]; 
 
 #define NUM_MODES_ITEMS 10
 
@@ -693,48 +664,6 @@ delete(int disp)
 	formatted = FALSE;
 }
 
-/* find the proper horizontal position for the pointer	*/
-void 
-scanline(ee_char *pos)
-{
-	int temp;
-	ee_char *ptr;
-
-	ptr = curr_line->line;
-	temp = 0;
-	while (ptr < pos)
-	{
-		if (*ptr <= 8)
-			temp += 2;
-		else if (*ptr == 9)
-			temp += tabshift(temp);
-		else if ((*ptr >= 10) && (*ptr <= 31))
-			temp += 2;
-		else if ((*ptr >= 32) && (*ptr < 127))
-			temp++;
-		else if (*ptr == 127)
-			temp += 2;
-		else if (!eightbit)
-			temp += 5;
-		else
-			temp++;
-		ptr++;
-	}
-	scr_horz = temp;
-	if ((scr_horz - horiz_offset) > last_col)
-	{
-		horiz_offset = (scr_horz - (scr_horz % 8)) - (COLS - 8);
-		midscreen(scr_vert, point);
-	}
-	else if (scr_horz < horiz_offset)
-	{
-		horiz_offset = max(0, (scr_horz - (scr_horz % 8)));
-		midscreen(scr_vert, point);
-	}
-}
-
-
-/* insert new line		*/
 void
 insert_line(int disp)
 {
@@ -814,6 +743,7 @@ insert_line(int disp)
 }
 
 
+void
 bottom(void)
 {
 	while (curr_line->next_line != NULL)
@@ -1593,14 +1523,14 @@ delete_text(void)
 /* prompt and read search string (srch_str)	*/
 
 /* delete current character	*/
-void 
+static void
 del_char(void)
 {
 undo_action();
 }
 
 /* undelete last deleted character	*/
-void 
+static void
 undel_char(void)
 {
         redo_action();
@@ -2149,348 +2079,6 @@ sh_command(char *string)
 			clearok(info_win, TRUE);
 	}
 
-	redraw();
-}
-static char item_alpha[] = "abcdefghijklmnopqrstuvwxyz0123456789 ";
-
-int 
-menu_op(struct menu_entries menu_list[])
-{
-	WINDOW *temp_win;
-	int max_width, max_height;
-	int x_off, y_off;
-	int counter;
-	int length;
-        int input;
-        int temp = 0;
-	int list_size;
-	int top_offset;		/* offset from top where menu items start */
-	int vert_size;		/* vertical size for menu list item display */
-	int off_start = 1;	/* offset from start of menu items to start display */
-
-
-	/*
-	 |	determine number and width of menu items
-	 */
-
-	list_size = 1;
-	while (menu_list[list_size + 1].item_string != NULL)
-		list_size++;
-	max_width = 0;
-	for (counter = 0; counter <= list_size; counter++)
-	{
-		if ((length = strlen(menu_list[counter].item_string)) > max_width)
-			max_width = length;
-	}
-        max_width += 3;
-        max_width = max(max_width, (int)strlen(menu_cancel_msg));
-        max_width = max(max_width, max((int)strlen(more_above_str), (int)strlen(more_below_str)));
-	max_width += 6;
-
-	/*
-	 |	make sure that window is large enough to handle menu
-	 |	if not, print error message and return to calling function
-	 */
-
-	if (max_width > COLS)
-	{
-		wmove(com_win, 0, 0);
-		werase(com_win);
-		wprintw(com_win, "%s", menu_too_lrg_msg);
-		wrefresh(com_win);
-		clear_com_win = TRUE;
-		return(0);
-	}
-
-	top_offset = 0;
-
-	if (list_size > LINES)
-	{
-		max_height = LINES;
-		if (max_height > 11)
-			vert_size = max_height - 8;
-		else
-			vert_size = max_height;
-	}
-	else
-	{
-		vert_size = list_size;
-		max_height = list_size;
-	}
-
-	if (LINES >= (vert_size + 8))
-	{
-		if (menu_list[0].argument != MENU_WARN)
-			max_height = vert_size + 8;
-		else
-			max_height = vert_size + 7;
-		top_offset = 4;
-	}
-	x_off = (COLS - max_width) / 2;
-	y_off = (LINES - max_height - 1) / 2;
-	temp_win = newwin(max_height, max_width, y_off, x_off);
-	keypad(temp_win, TRUE);
-
-	paint_menu(menu_list, max_width, max_height, list_size, top_offset, temp_win, off_start, vert_size);
-
-	counter = 1;
-	do
-	{
-		if (off_start > 2)
-			wmove(temp_win, (1 + counter + top_offset - off_start), 3);
-		else
-			wmove(temp_win, (counter + top_offset - off_start), 3);
-
-		wrefresh(temp_win);
-		in = wgetch(temp_win);
-		input = in;
-		if (input == -1)
-			exit(0);
-
-		if (isascii(input) && isalnum(input))
-		{
-			if (isalpha(input))
-			{
-				temp = 1 + tolower(input) - 'a';
-			}
-			else if (isdigit(input))
-			{
-				temp = (2 + 'z' - 'a') + (input - '0');
-			}
-
-			if (temp <= list_size)
-			{
-				input = '\n';
-				counter = temp;
-			}
-		}
-		else
-		{		
-			switch (input)
-			{
-				case ' ':	/* space	*/
-				case '\004':	/* ^d, down	*/
-				case KEY_RIGHT:
-				case KEY_DOWN:
-					counter++;
-					if (counter > list_size)
-						counter = 1;
-					break;
-				case '\010':	/* ^h, backspace*/
-				case '\025':	/* ^u, up	*/
-				case 127:	/* ^?, delete	*/
-				case KEY_BACKSPACE:
-				case KEY_LEFT:
-				case KEY_UP:
-					counter--;
-					if (counter == 0)
-						counter = list_size;
-					break;
-				case '\033':	/* escape key	*/
-					if (menu_list[0].argument != MENU_WARN)
-						counter = 0;
-					break;
-				case '\014':	/* ^l       	*/
-				case '\022':	/* ^r, redraw	*/
-					paint_menu(menu_list, max_width, max_height, 
-						list_size, top_offset, temp_win, 
-						off_start, vert_size);
-					break;
-				default:
-					break;
-			}
-		}
-	
-		if (((list_size - off_start) >= (vert_size - 1)) && 
-			(counter > (off_start + vert_size - 3)) && 
-				(off_start > 1))
-		{
-			if (counter == list_size)
-				off_start = (list_size - vert_size) + 2;
-			else
-				off_start++;
-
-			paint_menu(menu_list, max_width, max_height, 
-				   list_size, top_offset, temp_win, off_start, 
-				   vert_size);
-		}
-		else if ((list_size != vert_size) && 
-				(counter > (off_start + vert_size - 2)))
-		{
-			if (counter == list_size)
-				off_start = 2 + (list_size - vert_size);
-			else if (off_start == 1)
-				off_start = 3;
-			else
-				off_start++;
-
-			paint_menu(menu_list, max_width, max_height, 
-				   list_size, top_offset, temp_win, off_start, 
-				   vert_size);
-		}
-		else if (counter < off_start)
-		{
-			if (counter <= 2)
-				off_start = 1;
-			else
-				off_start = counter;
-
-			paint_menu(menu_list, max_width, max_height, 
-				   list_size, top_offset, temp_win, off_start, 
-				   vert_size);
-		}
-	}
-	while ((input != '\r') && (input != '\n') && (counter != 0));
-
-	werase(temp_win);
-	wrefresh(temp_win);
-	delwin(temp_win);
-
-	if ((menu_list[counter].procedure != NULL) || 
-	    (menu_list[counter].iprocedure != NULL) || 
-	    (menu_list[counter].nprocedure != NULL))
-	{
-		if (menu_list[counter].argument != -1)
-			(*menu_list[counter].iprocedure)(menu_list[counter].argument);
-		else if (menu_list[counter].ptr_argument != NULL)
-			(*menu_list[counter].procedure)(menu_list[counter].ptr_argument);
-		else
-			(*menu_list[counter].nprocedure)();
-	}
-
-	if (info_window)
-		paint_info_win();
-	redraw();
-
-	return(counter);
-}
-
-void 
-paint_menu(struct menu_entries menu_list[], int max_width, int max_height,
-    int list_size, int top_offset, WINDOW *menu_win, int off_start,
-    int vert_size)
-{
-	int counter, temp_int;
-
-	werase(menu_win);
-
-	/*
-	 |	output top and bottom portions of menu box only if window 
-	 |	large enough 
-	 */
-
-	if (max_height > vert_size)
-	{
-		wmove(menu_win, 1, 1);
-		if (!nohighlight)
-			wstandout(menu_win);
-		waddch(menu_win, '+');
-		for (counter = 0; counter < (max_width - 4); counter++)
-			waddch(menu_win, '-');
-		waddch(menu_win, '+');
-
-		wmove(menu_win, (max_height - 2), 1);
-		waddch(menu_win, '+');
-		for (counter = 0; counter < (max_width - 4); counter++)
-			waddch(menu_win, '-');
-		waddch(menu_win, '+');
-		wstandend(menu_win);
-		wmove(menu_win, 2, 3);
-		waddstr(menu_win, menu_list[0].item_string);
-		wmove(menu_win, (max_height - 3), 3);
-		if (menu_list[0].argument != MENU_WARN)
-			waddstr(menu_win, menu_cancel_msg);
-	}
-	if (!nohighlight)
-		wstandout(menu_win);
-
-	for (counter = 0; counter < (vert_size + top_offset); counter++)
-	{
-		if (top_offset == 4)
-		{
-			temp_int = counter + 2;
-		}
-		else
-			temp_int = counter;
-
-		wmove(menu_win, temp_int, 1);
-		waddch(menu_win, '|');
-		wmove(menu_win, temp_int, (max_width - 2));
-		waddch(menu_win, '|');
-	}
-	wstandend(menu_win);
-
-	if (list_size > vert_size)
-	{
-		if (off_start >= 3)
-		{
-			temp_int = 1;
-			wmove(menu_win, top_offset, 3);
-			waddstr(menu_win, more_above_str);
-		}
-		else
-			temp_int = 0;
-
-		for (counter = off_start; 
-			((temp_int + counter - off_start) < (vert_size - 1));
-				counter++)
-		{
-			wmove(menu_win, (top_offset + temp_int + 
-						(counter - off_start)), 3);
-			if (list_size > 1)
-				wprintw(menu_win, "%c) ", item_alpha[min((counter - 1), max_alpha_char)]);
-			waddstr(menu_win, menu_list[counter].item_string);
-		}
-
-		wmove(menu_win, (top_offset + (vert_size - 1)), 3);
-
-		if (counter == list_size)
-		{
-			if (list_size > 1)
-				wprintw(menu_win, "%c) ", item_alpha[min((counter - 1), max_alpha_char)]);
-			wprintw(menu_win, "%s", menu_list[counter].item_string);
-		}
-		else
-			wprintw(menu_win, "%s", more_below_str);
-	}
-	else
-	{
-		for (counter = 1; counter <= list_size; counter++)
-		{
-			wmove(menu_win, (top_offset + counter - 1), 3);
-			if (list_size > 1)
-				wprintw(menu_win, "%c) ", item_alpha[min((counter - 1), max_alpha_char)]);
-			waddstr(menu_win, menu_list[counter].item_string);
-		}
-	}
-}
-
-void 
-help(void)
-{
-	int counter;
-
-	werase(help_win);
-	clearok(help_win, TRUE);
-	for (counter = 0; counter < 22; counter++)
-	{
-		wmove(help_win, counter, 0);
-		waddstr(help_win, (emacs_keys_mode) ? 
-			emacs_help_text[counter] : help_text[counter]);
-	}
-	wrefresh(help_win);
-	werase(com_win);
-	wmove(com_win, 0, 0);
-	wprintw(com_win, "%s", press_any_key_msg);
-	wrefresh(com_win);
-	counter = wgetch(com_win);
-	if (counter == -1)
-		exit(0);
-	werase(com_win);
-	wmove(com_win, 0, 0);
-	werase(help_win);
-	wrefresh(help_win);
-	wrefresh(com_win);
 	redraw();
 }
 
@@ -3365,105 +2953,6 @@ Auto_Format(void)
 	midscreen(scr_vert, point);
 }
 
-void 
-modes_op(void)
-{
-	int ret_value;
-	int counter;
-	char *string;
-
-	do
-	{
-                snprintf(modes_menu[1].item_string, 80, "%s %s", mode_strings[1],
-                                        (expand_tabs ? ON : OFF));
-                snprintf(modes_menu[2].item_string, 80, "%s %s", mode_strings[2],
-                                        (case_sen ? ON : OFF));
-                snprintf(modes_menu[3].item_string, 80, "%s %s", mode_strings[3],
-                                        (observ_margins ? ON : OFF));
-                snprintf(modes_menu[4].item_string, 80, "%s %s", mode_strings[4],
-                                        (auto_format ? ON : OFF));
-                snprintf(modes_menu[5].item_string, 80, "%s %s", mode_strings[5],
-                                        (eightbit ? ON : OFF));
-                snprintf(modes_menu[6].item_string, 80, "%s %s", mode_strings[6],
-                                        (info_window ? ON : OFF));
-                snprintf(modes_menu[7].item_string, 80, "%s %s", mode_strings[7],
-                                        (emacs_keys_mode ? ON : OFF));
-                snprintf(modes_menu[8].item_string, 80, "%s %d", mode_strings[8],
-                                        right_margin);
-                snprintf(modes_menu[9].item_string, 80, "%s %s", mode_strings[9],
-                                        (ee_chinese ? ON : OFF));
-
-		ret_value = menu_op(modes_menu);
-
-		switch (ret_value) 
-		{
-			case 1:
-				expand_tabs = !expand_tabs;
-				break;
-			case 2:
-				case_sen = !case_sen;
-				break;
-			case 3:
-				observ_margins = !observ_margins;
-				break;
-			case 4:
-				auto_format = !auto_format;
-				if (auto_format)
-					observ_margins = TRUE;
-				break;
-			case 5:
-				eightbit = !eightbit;
-				if (!eightbit)
-					ee_chinese = FALSE;
-#ifdef NCURSE
-				if (ee_chinese)
-					nc_setattrib(A_NC_BIG5);
-				else
-					nc_clearattrib(A_NC_BIG5);
-#endif /* NCURSE */
-
-				redraw();
-				wnoutrefresh(text_win);
-				break;
-			case 6:
-				if (info_window)
-					no_info_window();
-				else
-					create_info_window();
-				break;
-			case 7:
-				emacs_keys_mode = !emacs_keys_mode;
-				if (info_window)
-					paint_info_win();
-				break;
-			case 8:
-				string = get_string(margin_prompt, TRUE);
-				if (string != NULL)
-				{
-					counter = atoi(string);
-					if (counter > 0)
-						right_margin = counter;
-					free(string);
-				}
-				break;
-			case 9:
-				ee_chinese = !ee_chinese;
-				if (ee_chinese != FALSE)
-					eightbit = TRUE;
-#ifdef NCURSE
-				if (ee_chinese)
-					nc_setattrib(A_NC_BIG5);
-				else
-					nc_clearattrib(A_NC_BIG5);
-#endif /* NCURSE */
-				redraw();
-				break;
-			default:
-				break;
-		}
-	}
-	while (ret_value != 0);
-}
 
 /* a strchr() look-alike for systems without strchr() */
 char *

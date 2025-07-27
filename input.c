@@ -9,6 +9,7 @@
 #include "input.h"
 #include "screen.h"
 #include "text.h"
+#include "menu.h"
 
 #define max(a, b) ((a) > (b) ? (a) : (b))
 /* globals from ee.c */
@@ -44,15 +45,6 @@ void del_word(void);
 int search(int display_message);
 void del_line(void);
 void undel_line(void);
-struct menu_entries {
-    char *item_string;
-    int (*procedure)(struct menu_entries *);
-    struct menu_entries *ptr_argument;
-    int (*iprocedure)(int);
-    void (*nprocedure)(void);
-    int argument;
-};
-int menu_op(struct menu_entries *);
 extern struct menu_entries main_menu[];
 void adv_word(void);
 void adv_line(void);

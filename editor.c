@@ -27,15 +27,7 @@
 #include "undo.h"
 #include "editor.h"
 #include "input.h"
-
-struct menu_entries {
-    char *item_string;
-    int (*procedure)(struct menu_entries *);
-    struct menu_entries *ptr_argument;
-    int (*iprocedure)(int);
-    void (*nprocedure)(void);
-    int argument;
-};
+#include "menu.h"
 
 /* globals defined in ee.c */
 extern struct text *first_line;

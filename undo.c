@@ -85,7 +85,7 @@ static void apply_snapshot(struct snapshot *snap)
     redraw();
 }
 
-void undo_init(void)
+static void undo_init(void)
 {
     undo_pos = redo_pos = 0;
     chunk_saved = 1;
