@@ -51,6 +51,7 @@ After reading this guide, consult `characters.md` for the current UTF-8 plan and
 ## Status
 
 Undo support with grouped input chunks is complete for now. See `undo.md` for details.
+File I/O routines now reside in `fileio.c` as part of the ongoing module split.
 
 ## Coding Style
 

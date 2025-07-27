@@ -34,6 +34,11 @@ new_curse.c/.h  --> remains as provided
 text.h          --> core text buffer structures
 ```
 
+### Completed Splits
+
+- `buffer.c` extracted from `ee.c`
+- `fileio.c` extracted from `ee.c`
+
 ## Workflow Diagram
 
 ```
