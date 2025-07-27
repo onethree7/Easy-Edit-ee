@@ -111,17 +111,13 @@ nl_catd catalog;
 
 #include "text.h"
 
+#include "buffer.h"
 struct text *first_line;
 struct text *dlt_line;
 struct text *curr_line;
 struct text *tmp_line;
 struct text *srch_line;
 
-
-struct files {		/* structure to store names of files to be edited*/
-	char *name;		/* name of file				*/
-	struct files *next_name;
-	};
 
 struct files *top_of_stack = NULL;
 
@@ -234,20 +230,6 @@ struct menu_entries {
 	int argument;
 	};
 
-ee_char *resiz_line(int factor, struct text *rline, int rpos);
-void insert(int character);
-void delete(int disp);
-void scanline(ee_char *pos);
-int tabshift(int temp_int);
-int out_char(WINDOW *window, ee_char character, int column);
-int len_char(ee_char character, int column);
-void draw_line(int vertical, int horiz, ee_char *ptr, int t_pos, int length);
-void insert_line(int disp);
-struct text *txtalloc(void);
-struct files *name_alloc(void);
-ee_char *next_word(ee_char *string);
-char *next_ascii_word(char *string);
-void prev_word(void);
 void control(void);
 void emacs_control(void);
 void bottom(void);
@@ -718,19 +700,6 @@ static void run_editor(void)
         }
 }
 
-/* resize the line to length + factor*/
-ee_char *
-resiz_line(int factor, struct text *rline, int rpos)
-{
-	ee_char *rpoint;
-	int resiz_var;
- 
-        rline->max_length += factor;
-        rpoint = rline->line = realloc(rline->line, rline->max_length * sizeof(ee_char));
-	for (resiz_var = 1 ; (resiz_var < rpos) ; resiz_var++)
-		rpoint++;
-	return(rpoint);
-}
 
 /* insert character into line		*/
 void
@@ -1182,76 +1151,6 @@ insert_line(int disp)
 	}
 }
 
-/* allocate space for line structure	*/
-struct text *
-txtalloc(void)
-{
-        struct text *t = malloc(sizeof(struct text));
-        if (!t) {
-                perror("malloc");
-                exit(1);
-        }
-        return t;
-}
-
-
-
-
-/* allocate space for file name list node */
-struct files *
-name_alloc(void)
-{
-        struct files *f = malloc(sizeof(struct files));
-        if (!f) {
-                perror("malloc");
-                exit(1);
-        }
-        return f;
-}
-
-/* move to next word in string		*/
-ee_char *
-next_word(ee_char *string)
-{
-	while ((*string != '\0') && ((*string != 32) && (*string != 9)))
-		string++;
-	while ((*string != '\0') && ((*string == 32) || (*string == 9)))
-		string++;
-        return(string);
-}
-
-/* move to next word in an ASCII string */
-char *
-next_ascii_word(char *string)
-{
-        while ((*string != '\0') && ((*string != ' ') && (*string != '\t')))
-                string++;
-        while ((*string != '\0') && ((*string == ' ') || (*string == '\t')))
-                string++;
-        return string;
-}
-
-/* move to start of previous word in text	*/
-void 
-prev_word(void)
-{
-	if (position != 1)
-	{
-		if ((position != 1) && ((point[-1] == ' ') || (point[-1] == '\t')))
-		{	/* if at the start of a word	*/
-			while ((position != 1) && ((*point != ' ') && (*point != '\t')))
-				left(TRUE);
-		}
-		while ((position != 1) && ((*point == ' ') || (*point == '\t')))
-			left(TRUE);
-		while ((position != 1) && ((*point != ' ') && (*point != '\t')))
-			left(TRUE);
-		if ((position != 1) && ((*point == ' ') || (*point == '\t')))
-			right(TRUE);
-	}
-	else
-		left(TRUE);
-}
 
 /* use control for commands		*/
 void 

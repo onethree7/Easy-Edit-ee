@@ -7,7 +7,7 @@ CPPFLAGS ?=
 LDFLAGS  ?= -lncursesw
 PREFIX   ?= /usr/local
 BINDIR   ?= $(PREFIX)/bin
-SRC      = ee.c undo.c
+SRC      = ee.c buffer.c undo.c
 OBJ      = $(SRC:.c=.o)
 BIN      = ee
 
