@@ -116,6 +116,7 @@ nl_catd catalog;
 #include "screen.h"
 #include "search.h"
 #include "editor.h"
+#include "input.h"
 struct text *first_line;
 struct text *dlt_line;
 struct text *curr_line;
@@ -233,8 +234,6 @@ struct menu_entries {
 	int argument;
 	};
 
-void control(void);
-void emacs_control(void);
 void bottom(void);
 void top(void);
 void nextline(void);
@@ -244,7 +243,6 @@ void right(int disp);
 void find_pos(void);
 void up(void);
 void down(void);
-void function_key(void);
 void print_buffer(void);
 void command(char *cmd_str1);
 int scan(char *line, int offset, int column);
@@ -300,10 +298,6 @@ int unique_test(char *string, char *list[]);
  * once. Subsequent calls in the same chunk simply update the action
  * type so mixed inserts and deletes still share one snapshot.
  */
-static void start_action(void)
-{
-    undo_begin_chunk();
-}
 
 /* allocate space here for the strings that will be in the menu */
 struct menu_entries modes_menu[] = {
@@ -820,161 +814,6 @@ insert_line(int disp)
 }
 
 
-/* use control for commands		*/
-void 
-control(void)
-{
-	char *string;
-
-	if (in == 1)		/* control a	*/
-	{
-		string = get_string(ascii_code_str, TRUE);
-		if (*string != '\0')
-		{
-			in = atoi(string);
-			wmove(text_win, scr_vert, (scr_horz - horiz_offset));
-			insert(in);
-		}
-		free(string);
-	}
-	else if (in == 2)	/* control b	*/
-		bottom();
-	else if (in == 3)	/* control c	*/
-	{
-		command_prompt();
-	}
-	else if (in == 4)	/* control d	*/
-		down();
-	else if (in == 5)	/* control e	*/
-		search_prompt();
-	else if (in == 6)	/* control f	*/
-		redo_action();
-	else if (in == 7)	/* control g	*/
-		bol();
-	else if (in == 8)	/* control h	*/
-		delete(TRUE);
-	else if (in == 9)	/* control i	*/
-		;
-	else if (in == 10)	/* control j	*/
-		insert_line(TRUE);
-	else if (in == 11)	/* control k	*/
-		undo_action();
-	else if (in == 12)	/* control l	*/
-		left(TRUE);
-	else if (in == 13)	/* control m	*/
-		insert_line(TRUE);
-	else if (in == 14)	/* control n	*/
-		move_rel('d', max(5, (last_line - 5)));
-	else if (in == 15)	/* control o	*/
-		eol();
-	else if (in == 16)	/* control p	*/
-		move_rel('u', max(5, (last_line - 5)));
-	else if (in == 17)	/* control q	*/
-		;
-	else if (in == 18)	/* control r	*/
-		right(TRUE);
-	else if (in == 19)	/* control s	*/
-		;
-	else if (in == 20)	/* control t	*/
-		top();
-	else if (in == 21)	/* control u	*/
-		up();
-	else if (in == 22)	/* control v	*/
-		undel_word();
-	else if (in == 23)	/* control w	*/
-		del_word();
-	else if (in == 24)	/* control x	*/
-		search(TRUE);
-	else if (in == 25)	/* control y	*/
-		del_line();
-	else if (in == 26)	/* control z	*/
-		undel_line();
-	else if (in == 27)	/* control [ (escape)	*/
-	{
-		menu_op(main_menu);
-	}	
-}
-
-/*
- |	Emacs control-key bindings
- */
-
-void 
-emacs_control(void)
-{
-	char *string;
-
-	if (in == 1)		/* control a	*/
-		bol();
-	else if (in == 2)	/* control b	*/
-		left(TRUE);
-	else if (in == 3)	/* control c	*/
-	{
-		command_prompt();
-	}
-	else if (in == 4)	/* control d	*/
-		undo_action();
-	else if (in == 5)	/* control e	*/
-		eol();
-	else if (in == 6)	/* control f	*/
-		right(TRUE);
-	else if (in == 7)	/* control g	*/
-		move_rel('u', max(5, (last_line - 5)));
-	else if (in == 8)	/* control h	*/
-		delete(TRUE);
-	else if (in == 9)	/* control i	*/
-		;
-	else if (in == 10)	/* control j	*/
-		redo_action();
-	else if (in == 11)	/* control k	*/
-		del_line();
-	else if (in == 12)	/* control l	*/
-		undel_line();
-	else if (in == 13)	/* control m	*/
-		insert_line(TRUE);
-	else if (in == 14)	/* control n	*/
-		down();
-	else if (in == 15)	/* control o	*/
-	{
-		string = get_string(ascii_code_str, TRUE);
-		if (*string != '\0')
-		{
-			in = atoi(string);
-			wmove(text_win, scr_vert, (scr_horz - horiz_offset));
-			insert(in);
-		}
-		free(string);
-	}
-	else if (in == 16)	/* control p	*/
-		up();
-	else if (in == 17)	/* control q	*/
-		;
-	else if (in == 18)	/* control r	*/
-		undel_word();
-	else if (in == 19)	/* control s	*/
-		;
-	else if (in == 20)	/* control t	*/
-		top();
-	else if (in == 21)	/* control u	*/
-		bottom();
-	else if (in == 22)	/* control v	*/
-		move_rel('d', max(5, (last_line - 5)));
-	else if (in == 23)	/* control w	*/
-		del_word();
-	else if (in == 24)	/* control x	*/
-		search(TRUE);
-	else if (in == 25)	/* control y	*/
-		search_prompt();
-	else if (in == 26)	/* control z	*/
-		adv_word();
-	else if (in == 27)	/* control [ (escape)	*/
-	{
-		menu_op(main_menu);
-	}	
-}
-
-/* go to bottom of file			*/
-void 
 bottom(void)
 {
 	while (curr_line->next_line != NULL)
@@ -1185,111 +1024,6 @@ down(void)
 }
 
 /* process function key		*/
-void 
-function_key(void)
-{
-	if (in == KEY_LEFT)
-		left(TRUE);
-	else if (in == KEY_RIGHT)
-		right(TRUE);
-	else if (in == KEY_HOME)
-		bol();
-	else if (in == KEY_END)
-		eol();
-	else if (in == KEY_UP)
-		up();
-	else if (in == KEY_DOWN)
-		down();
-	else if (in == KEY_NPAGE)
-		move_rel('d', max( 5, (last_line - 5)));
-	else if (in == KEY_PPAGE)
-		move_rel('u', max(5, (last_line - 5)));
-	else if (in == KEY_DL)
-		del_line();
-	else if (in == KEY_DC)
-		undo_action();
-	else if (in == KEY_BACKSPACE)
-		delete(TRUE);
-	else if (in == KEY_IL)
-	{		/* insert a line before current line	*/
-		insert_line(TRUE);
-		left(TRUE);
-	}
-	else if (in == KEY_F(1))
-		gold = !gold;
-	else if (in == KEY_F(2))
-	{
-		if (gold)
-		{
-			gold = FALSE;
-			undel_line();
-		}
-		else
-			redo_action();
-	}
-	else if (in == KEY_F(3))
-	{
-		if (gold)
-		{
-			gold = FALSE;
-			undel_word();
-		}
-		else
-			del_word();
-	}
-	else if (in == KEY_F(4))
-	{
-		if (gold)
-		{
-			gold = FALSE;
-			paint_info_win();
-			midscreen(scr_vert, point);
-		}
-		else
-			adv_word();
-	}
-	else if (in == KEY_F(5))
-	{
-		if (gold)
-		{
-			gold = FALSE;
-			search_prompt();
-		}
-		else
-			search(TRUE);
-	}
-	else if (in == KEY_F(6))
-	{
-		if (gold)
-		{
-			gold = FALSE;
-			bottom();
-		}
-		else
-			top();
-	}
-	else if (in == KEY_F(7))
-	{
-		if (gold)
-		{
-			gold = FALSE;
-			eol();
-		}
-		else
-			bol();
-	}
-	else if (in == KEY_F(8))
-	{
-		if (gold)
-		{
-			gold = FALSE;
-			command_prompt();
-		} 
-		else
-			adv_line();
-	}
-}
-
 void 
 print_buffer(void)
 {

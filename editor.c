@@ -26,6 +26,7 @@
 #include "search.h"
 #include "undo.h"
 #include "editor.h"
+#include "input.h"
 
 struct menu_entries {
     char *item_string;
@@ -206,38 +207,11 @@ extern void check_fp(void);
 extern void delete(int disp);
 extern void insert_line(int disp);
 extern void insert(int character);
-extern void control(void);
-extern void emacs_control(void);
 extern void finish(void);
 extern void edit_abort(int arg);
-extern void function_key(void);
 
 static struct timespec last_input_time = {0};
 
-static int collect_input_chunk(int *buf, int max)
-{
-    int len = 0;
-    wint_t ch;
-    int rc = wget_wch(text_win, &ch);
-    if (rc == ERR)
-        return 0;
-    buf[len++] = (int)ch;
-
-    nodelay(text_win, TRUE);
-    struct timespec delay = {0, 30000000};
-    while (len < max) {
-        rc = wget_wch(text_win, &ch);
-        if (rc == ERR) {
-            nanosleep(&delay, NULL);
-            rc = wget_wch(text_win, &ch);
-            if (rc == ERR)
-                break;
-        }
-        buf[len++] = (int)ch;
-    }
-    nodelay(text_win, FALSE);
-    return len;
-}
 
 int main(int argc, char *argv[])
 {
