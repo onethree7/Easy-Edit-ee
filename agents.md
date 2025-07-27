@@ -53,6 +53,7 @@ Refer to the module outline in [modules.md](modules.md) when moving code out of 
 
 Undo support with grouped input chunks is complete for now. See `undo.md` for details.
 File I/O routines now reside in `fileio.c` as part of the ongoing module split.
+Screen drawing functions were moved to `screen.c` and the main editor loop now lives in `editor.c`.
 
 ## Coding Style
 

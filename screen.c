@@ -6,10 +6,10 @@
 #include "buffer.h"
 #include "fileio.h"
 #include "undo.h"
+#include "editor.h"
 
 /* needed declarations from ee.c */
 extern void scanline(ee_char *pos);
-extern void set_up_term(void);
 
 #define TAB 9
 #define CONTROL_KEYS 1

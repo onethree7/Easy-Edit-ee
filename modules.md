@@ -38,6 +38,8 @@ text.h          --> core text buffer structures
 
 - `buffer.c` extracted from `ee.c`
 - `fileio.c` extracted from `ee.c`
+- `screen.c` extracted from `ee.c`
+- `editor.c` extracted from `ee.c`
 
 ## Workflow Diagram
 
