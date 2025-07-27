@@ -646,8 +646,6 @@ static void run_editor(void)
 {
         clear_com_win = TRUE;
 
-        int counter = 0;
-
         while(edit)
         {
 		/*
@@ -2576,14 +2574,15 @@ quit(int noverify)
 	return(0);
 }
 
-void 
+void
 edit_abort(int arg)
 {
-	wrefresh(com_win);
-	resetty();
-	endwin();
-	putchar('\n');
-	exit(1);
+        (void)arg;
+        wrefresh(com_win);
+        resetty();
+        endwin();
+        putchar('\n');
+        exit(1);
 }
 
 void 
@@ -2613,9 +2612,8 @@ write_file(char *file_name, int warn_if_exists)
 	char cr;
 	char *tmp_point;
 	struct text *out_line;
-	int lines, charac;
-	int temp_pos;
-	int write_flag = TRUE;
+        int lines, charac;
+        int write_flag = TRUE;
 
 	charac = lines = 0;
 	if (warn_if_exists &&
@@ -2722,7 +2720,7 @@ search(int display_message)
 			else		/* if not case sensitive	*/
 			{
 				srch_3 = u_srch_str;
-                        while ((towupper(*srch_2) == *srch_3) && (*srch_3 != '\0'))
+                        while ((towupper((wint_t)*srch_2) == (wint_t)*srch_3) && (*srch_3 != '\0'))
 				{
 					found = TRUE;
 					srch_2++;
@@ -3032,8 +3030,8 @@ while ((position < curr_line->line_length) && ((*point == 32) || (*point == 9)))
 void 
 move_rel(int direction, int lines)
 {
-	int i;
-	char *tmp;
+        int i;
+        ee_char *tmp;
 
 	if (direction == 'u')
 	{
@@ -3208,7 +3206,11 @@ sh_command(char *string)
 
 	if (in_pipe)
 	{
-		pipe(pipe_in);		/* create a pipe	*/
+		if (pipe(pipe_in) != 0) {
+		perror("pipe");
+		return;
+	}
+
 		parent = fork();
 		if (!parent)		/* if the child		*/
 		{
@@ -3220,15 +3222,21 @@ sh_command(char *string)
 /*
  |  redirect stdout to pipe
  */
-			temp_stdout = dup(1);
-			close(1);
-			dup(pipe_in[1]);
+                        temp_stdout = dup(1);
+                        close(1);
+                        if (dup(pipe_in[1]) == -1) {
+                                perror("dup");
+                                exit(1);
+                        }
 /*
  |  redirect stderr to pipe
  */
-			temp_stderr = dup(2);
-			close(2);
-			dup(pipe_in[1]);
+                        temp_stderr = dup(2);
+                        close(2);
+                        if (dup(pipe_in[1]) == -1) {
+                                perror("dup");
+                                exit(1);
+                        }
 			close(pipe_in[1]);
 			/*
 			 |	child will now continue down 'if (!in_pipe)' 
@@ -3265,10 +3273,13 @@ sh_command(char *string)
 	if (!in_pipe)
 	{
 		signal(SIGINT, SIG_IGN);
-		if (out_pipe)
-		{
-			pipe(pipe_out);
-		}
+                if (out_pipe)
+                {
+                        if (pipe(pipe_out) != 0) {
+                                perror("pipe");
+                                return;
+                        }
+                }
 /*
  |  fork process which will exec command
  */
@@ -3283,9 +3294,12 @@ sh_command(char *string)
  |  prepare the child process (soon to exec a shell command) to read from the 
  |  pipe (which will be output from the editor's buffer)
  */
-				close(0);
-				dup(pipe_out[0]);
-				close(pipe_out[0]);
+                                close(0);
+                                if (dup(pipe_out[0]) == -1) {
+                                        perror("dup");
+                                        exit(1);
+                                }
+                                close(pipe_out[0]);
 				close(pipe_out[1]);
 			}
 			for (value = 1; value < 24; value++)
@@ -3304,12 +3318,19 @@ sh_command(char *string)
  */
 				close(pipe_out[0]);
 				line_holder = first_line;
-				while (line_holder != NULL)
-				{
-					write(pipe_out[1], line_holder->line, (line_holder->line_length-1));
-					write(pipe_out[1], "\n", 1);
-					line_holder = line_holder->next_line;
-				}
+                                while (line_holder != NULL)
+                                {
+                                        if (write(pipe_out[1], line_holder->line,
+                                                   line_holder->line_length - 1) == -1) {
+                                                perror("write");
+                                                break;
+                                        }
+                                        if (write(pipe_out[1], "\n", 1) == -1) {
+                                                perror("write");
+                                                break;
+                                        }
+                                        line_holder = line_holder->next_line;
+                                }
 				close(pipe_out[1]);
 				out_pipe = FALSE;
 			}
@@ -3442,8 +3463,8 @@ menu_op(struct menu_entries menu_list[])
 	int x_off, y_off;
 	int counter;
 	int length;
-	int input;
-	int temp;
+        int input;
+        int temp = 0;
 	int list_size;
 	int top_offset;		/* offset from top where menu items start */
 	int vert_size;		/* vertical size for menu list item display */
@@ -3463,9 +3484,9 @@ menu_op(struct menu_entries menu_list[])
 		if ((length = strlen(menu_list[counter].item_string)) > max_width)
 			max_width = length;
 	}
-	max_width += 3;
-	max_width = max(max_width, strlen(menu_cancel_msg));
-	max_width = max(max_width, max(strlen(more_above_str), strlen(more_below_str)));
+        max_width += 3;
+        max_width = max(max_width, (int)strlen(menu_cancel_msg));
+        max_width = max(max_width, max((int)strlen(more_above_str), (int)strlen(more_below_str)));
 	max_width += 6;
 
 	/*
@@ -4383,9 +4404,11 @@ dump_ee_conf(void)
 	if (stat(file_name, &buf) != -1)
 	{
                 snprintf(buffer, sizeof(buffer), "%s.old", file_name);
-		unlink(buffer);
-		link(file_name, buffer);
-		unlink(file_name);
+                unlink(buffer);
+                if (link(file_name, buffer) != 0) {
+                        perror("link");
+                }
+                unlink(file_name);
 		old_init_file = fopen(buffer, "r");
 	}
 
