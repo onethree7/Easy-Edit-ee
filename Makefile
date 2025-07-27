@@ -2,7 +2,7 @@
 
 # ---- Config ----
 CC       ?= gcc
-CFLAGS   ?= -Wall -Wextra -O2
+CFLAGS   ?= -Wall -Wextra -O2 -std=c99
 CPPFLAGS ?=
 LDFLAGS  ?= -lncursesw
 PREFIX   ?= /usr/local
