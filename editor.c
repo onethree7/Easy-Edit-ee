@@ -23,6 +23,7 @@
 #include "buffer.h"
 #include "fileio.h"
 #include "screen.h"
+#include "search.h"
 #include "undo.h"
 #include "editor.h"
 

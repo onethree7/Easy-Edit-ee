@@ -40,6 +40,7 @@ text.h          --> core text buffer structures
 - `fileio.c` extracted from `ee.c`
 - `screen.c` extracted from `ee.c`
 - `editor.c` extracted from `ee.c`
+- `search.c` extracted from `ee.c`
 
 ## Workflow Diagram
 

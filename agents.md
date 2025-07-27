@@ -70,5 +70,7 @@ This file serves as a to‑do list and style reference. Update it whenever a new
 ## Current Work
 
 The priority is splitting the remaining logic in `ee.c` into dedicated modules.
-Follow the layout in [modules.md](modules.md). UTF‑8 refactoring from
-`characters.md` continues once the split is mostly done.
+`editor.c` and the core helpers have been separated. The search routines now
+live in `search.c`. Continue moving menu handling and input processing next as
+outlined in [modules.md](modules.md). UTF‑8 refactoring from `characters.md`
+continues once the split is mostly done.
