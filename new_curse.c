@@ -906,12 +906,12 @@ printf("starting initscr \n");fflush(stdout);
 	if (TERM_PATH != NULL)
 	{
 		Data_Line_len = 23 + strlen(TERM_PATH) + strlen(TERMINAL_TYPE);
-		Term_File_name = malloc(Data_Line_len);
-		sprintf(Term_File_name, "%s/%c/%s", TERM_PATH, *TERMINAL_TYPE, TERMINAL_TYPE);
+                Term_File_name = malloc(Data_Line_len);
+                snprintf(Term_File_name, Data_Line_len, "%s/%c/%s", TERM_PATH, *TERMINAL_TYPE, TERMINAL_TYPE);
 		Fildes = open(Term_File_name, O_RDONLY);
 		if (Fildes == -1)
 		{
-        		sprintf(Term_File_name, "%s/%x/%s", TERM_PATH, *TERMINAL_TYPE, TERMINAL_TYPE);
+                        snprintf(Term_File_name, Data_Line_len, "%s/%x/%s", TERM_PATH, *TERMINAL_TYPE, TERMINAL_TYPE);
         		Fildes = open(Term_File_name, O_RDONLY);
 		}
 	}
@@ -920,12 +920,12 @@ printf("starting initscr \n");fflush(stdout);
 	{
 		TERM_PATH = terminfo_path[counter];
 		Data_Line_len = 23 + strlen(TERM_PATH) + strlen(TERMINAL_TYPE);
-		Term_File_name = malloc(Data_Line_len);
-		sprintf(Term_File_name, "%s/%c/%s", TERM_PATH, *TERMINAL_TYPE, TERMINAL_TYPE);
+                Term_File_name = malloc(Data_Line_len);
+                snprintf(Term_File_name, Data_Line_len, "%s/%c/%s", TERM_PATH, *TERMINAL_TYPE, TERMINAL_TYPE);
 		Fildes = open(Term_File_name, O_RDONLY);
 		if (Fildes == -1)
 		{
-        		sprintf(Term_File_name, "%s/%x/%s", TERM_PATH, *TERMINAL_TYPE, TERMINAL_TYPE);
+                        snprintf(Term_File_name, Data_Line_len, "%s/%x/%s", TERM_PATH, *TERMINAL_TYPE, TERMINAL_TYPE);
         		Fildes = open(Term_File_name, O_RDONLY);
 		}
 		counter++;
@@ -3803,17 +3803,15 @@ int offset;
  |
  */
 
-void 
-nc_setattrib(flag)
-int flag;
+void
+nc_setattrib(int flag)
 {
-	nc_attributes |= flag;
+        nc_attributes |= flag;
 }
 
-void 
-nc_clearattrib(flag)
-int flag;
+void
+nc_clearattrib(int flag)
 {
-	nc_attributes &= ~flag;
+        nc_attributes &= ~flag;
 }
 

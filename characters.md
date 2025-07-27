@@ -27,7 +27,7 @@ Emoji support and other exotic glyphs remain out of scope for now.
 ## Outstanding gaps
 
 - Parts of `new_curse.c` still rely on byte-oriented buffers and must be updated for wide output.
-- Undo history does not yet store UTF‑8 text reliably.
+- Undo history now stores `ee_char` strings, though file I/O paths remain ASCII-only.
 - Testing coverage for multi-byte sequences is minimal.
 
 The immediate next tasks are to audit remaining byte-oriented functions, update them to use `ee_char`, and verify editing of the languages listed in the problem statement.

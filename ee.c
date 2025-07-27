@@ -203,17 +203,6 @@ WINDOW *info_win;
 
 /* ---- Undo/Redo support ---- */
 
-enum action_type {
-    ACT_NONE = 0,
-    ACT_INSERT,
-    ACT_DELETE,
-    ACT_DEL_WORD,
-    ACT_UNDEL_WORD,
-    ACT_DEL_LINE,
-    ACT_UNDEL_LINE
-};
-
-static enum action_type last_action = ACT_NONE;
 static struct timespec last_input_time = {0};
 
 
@@ -345,10 +334,9 @@ void strings_init(void);
  * once. Subsequent calls in the same chunk simply update the action
  * type so mixed inserts and deletes still share one snapshot.
  */
-static void start_action(enum action_type act)
+static void start_action(void)
 {
     undo_begin_chunk();
-    last_action = act;
 }
 
 /*
@@ -361,7 +349,7 @@ static int collect_input_chunk(int *buf, int max)
     wint_t ch;
     int rc = wget_wch(text_win, &ch);
     if (rc == ERR)
-        exit(0);
+        return 0;
     buf[len++] = (int)ch;
 
     nodelay(text_win, TRUE);
@@ -693,7 +681,6 @@ static void run_editor(void)
                 long diff_ms = (now.tv_sec - last_input_time.tv_sec) * 1000L +
                                (now.tv_nsec - last_input_time.tv_nsec) / 1000000L;
                 if (last_input_time.tv_sec == 0 || diff_ms > 500 || buf_len > 1) {
-                        last_action = ACT_NONE;
                         undo_end_chunk();
                 }
                 last_input_time = now;
@@ -714,7 +701,6 @@ static void run_editor(void)
                         }
 
                         if (in > 255) {
-                                last_action = ACT_NONE;
                                 function_key();
                         } else if ((in == '\10') || (in == 127)) {
                                 in = 8;         /* make sure key is set to backspace */
@@ -724,7 +710,6 @@ static void run_editor(void)
                         } else if ((in > 31) || (in == 9))
                                 insert(in);
                         else if ((in >= 0) && (in <= 31)) {
-                                last_action = ACT_NONE;
                                 if (emacs_keys_mode)
                                         emacs_control();
                                 else
@@ -753,7 +738,7 @@ resiz_line(int factor, struct text *rline, int rpos)
 void
 insert(int character)
 {
-        start_action(ACT_INSERT);
+        start_action();
         int counter;
         int value;
 	ee_char *temp;	/* temporary pointer			*/
@@ -839,7 +824,7 @@ insert(int character)
 void
 delete(int disp)
 {
-        start_action(ACT_DELETE);
+        start_action();
         ee_char *tp;
         ee_char *temp2;
 	struct text *temp_buff;
@@ -1024,7 +1009,7 @@ out_char(WINDOW *window, ee_char character, int column)
                         string = "^?";
                 else if (!eightbit)
                 {
-                        sprintf(string2, "<%x>", (unsigned int)character);
+                        snprintf(string2, sizeof(string2), "<%x>", (unsigned int)character);
                         string = string2;
                 }
                 else
@@ -1125,7 +1110,7 @@ void
 insert_line(int disp)
 {
         /* treat newlines like character inserts for undo grouping */
-        start_action(ACT_INSERT);
+        start_action();
         int temp_pos;
         int temp_pos2;
 	ee_char *temp;
@@ -1203,7 +1188,12 @@ insert_line(int disp)
 struct text *
 txtalloc(void)
 {
-        return((struct text *) malloc(sizeof( struct text)));
+        struct text *t = malloc(sizeof(struct text));
+        if (!t) {
+                perror("malloc");
+                exit(1);
+        }
+        return t;
 }
 
 
@@ -1213,7 +1203,12 @@ txtalloc(void)
 struct files *
 name_alloc(void)
 {
-	return((struct files *) malloc(sizeof( struct files)));
+        struct files *f = malloc(sizeof(struct files));
+        if (!f) {
+                perror("malloc");
+                exit(1);
+        }
+        return f;
 }
 
 /* move to next word in string		*/
@@ -1735,7 +1730,7 @@ print_buffer(void)
 {
 	char buffer[256];
 
-	sprintf(buffer, ">!%s", print_command);
+        snprintf(buffer, sizeof(buffer), ">!%s", print_command);
 	wmove(com_win, 0, 0);
 	wclrtoeol(com_win);
 	wprintw(com_win, printer_msg_str, print_command);
@@ -1984,6 +1979,8 @@ get_string(const char *prompt, int advance)
         wint_t win;
 
         g_point = tmp_string = malloc(512 * sizeof(ee_char));
+        if (!tmp_string)
+                return NULL;
         wmove(com_win,0,0);
         wclrtoeol(com_win);
         waddstr(com_win, prompt);
@@ -2042,7 +2039,15 @@ get_string(const char *prompt, int advance)
         *nam_str = L'\0';
         nam_str = tmp_string;
         size_t bytes = wcstombs(NULL, nam_str, 0);
+        if (bytes == (size_t)-1) {
+                free(tmp_string);
+                return NULL;
+        }
         string = malloc(bytes + 1);
+        if (!string) {
+                free(tmp_string);
+                return NULL;
+        }
         wcstombs(string, nam_str, bytes + 1);
         free(tmp_string);
         if (((*string == ' ') || (*string == '\t')) && advance)
@@ -2832,7 +2837,7 @@ undel_char(void)
 void 
 del_word(void)
 {
-        start_action(ACT_DEL_WORD);
+        start_action();
         int tposit;
         int difference;
 	ee_char *d_word2;
@@ -2888,7 +2893,7 @@ del_word(void)
 void 
 undel_word(void)
 {
-        start_action(ACT_UNDEL_WORD);
+        start_action();
         int temp;
         int tposit;
 	ee_char *tmp_old_ptr;
@@ -2952,7 +2957,7 @@ undel_word(void)
 void 
 del_line(void)
 {
-        start_action(ACT_DEL_LINE);
+        start_action();
         ee_char *dl1;
         ee_char *dl2;
 	int tposit;
@@ -2987,7 +2992,7 @@ del_line(void)
 void 
 undel_line(void)
 {
-        start_action(ACT_UNDEL_LINE);
+        start_action();
         ee_char *ud1;
         ee_char *ud2;
 	int tposit;
@@ -4377,7 +4382,7 @@ dump_ee_conf(void)
 
 	if (stat(file_name, &buf) != -1)
 	{
-		sprintf(buffer, "%s.old", file_name);
+                snprintf(buffer, sizeof(buffer), "%s.old", file_name);
 		unlink(buffer);
 		link(file_name, buffer);
 		unlink(file_name);
@@ -4523,7 +4528,7 @@ ispell_op(void)
 	{
 		return;
 	}
-	(void)sprintf(template, "/tmp/ee.XXXXXXXX");
+        snprintf(template, sizeof(template), "/tmp/ee.XXXXXXXX");
 	fd = mkstemp(template);
 	name = template;
 	if (fd < 0) {
@@ -4535,7 +4540,7 @@ ispell_op(void)
 	close(fd);
 	if (write_file(name, 0))
 	{
-		sprintf(string, "ispell %s", name);
+                snprintf(string, sizeof(string), "ispell %s", name);
 		sh_command(string);
 		delete_text();
 		tmp_file = name;
@@ -4851,24 +4856,24 @@ modes_op(void)
 
 	do
 	{
-		sprintf(modes_menu[1].item_string, "%s %s", mode_strings[1], 
-					(expand_tabs ? ON : OFF));
-		sprintf(modes_menu[2].item_string, "%s %s", mode_strings[2], 
-					(case_sen ? ON : OFF));
-		sprintf(modes_menu[3].item_string, "%s %s", mode_strings[3], 
-					(observ_margins ? ON : OFF));
-		sprintf(modes_menu[4].item_string, "%s %s", mode_strings[4], 
-					(auto_format ? ON : OFF));
-		sprintf(modes_menu[5].item_string, "%s %s", mode_strings[5], 
-					(eightbit ? ON : OFF));
-		sprintf(modes_menu[6].item_string, "%s %s", mode_strings[6], 
-					(info_window ? ON : OFF));
-		sprintf(modes_menu[7].item_string, "%s %s", mode_strings[7], 
-					(emacs_keys_mode ? ON : OFF));
-		sprintf(modes_menu[8].item_string, "%s %d", mode_strings[8], 
-					right_margin);
-		sprintf(modes_menu[9].item_string, "%s %s", mode_strings[9], 
-					(ee_chinese ? ON : OFF));
+                snprintf(modes_menu[1].item_string, 80, "%s %s", mode_strings[1],
+                                        (expand_tabs ? ON : OFF));
+                snprintf(modes_menu[2].item_string, 80, "%s %s", mode_strings[2],
+                                        (case_sen ? ON : OFF));
+                snprintf(modes_menu[3].item_string, 80, "%s %s", mode_strings[3],
+                                        (observ_margins ? ON : OFF));
+                snprintf(modes_menu[4].item_string, 80, "%s %s", mode_strings[4],
+                                        (auto_format ? ON : OFF));
+                snprintf(modes_menu[5].item_string, 80, "%s %s", mode_strings[5],
+                                        (eightbit ? ON : OFF));
+                snprintf(modes_menu[6].item_string, 80, "%s %s", mode_strings[6],
+                                        (info_window ? ON : OFF));
+                snprintf(modes_menu[7].item_string, 80, "%s %s", mode_strings[7],
+                                        (emacs_keys_mode ? ON : OFF));
+                snprintf(modes_menu[8].item_string, 80, "%s %d", mode_strings[8],
+                                        right_margin);
+                snprintf(modes_menu[9].item_string, 80, "%s %s", mode_strings[9],
+                                        (ee_chinese ? ON : OFF));
 
 		ret_value = menu_op(modes_menu);
 
