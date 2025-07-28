@@ -1,3 +1,5 @@
+#define _XOPEN_SOURCE 600
+#define _XOPEN_SOURCE_EXTENDED 1
 #include <string.h>
 #include <wctype.h>
 #include <wchar.h>
@@ -14,12 +16,6 @@ extern int local_COLS;
 #define TAB 9
 #define CONTROL_KEYS 1
 #define COMMANDS 2
-#ifndef max
-#define max(a,b) ((a) > (b) ? (a) : (b))
-#endif
-#ifndef min
-#define min(a,b) ((a) < (b) ? (a) : (b))
-#endif
 
 /* external globals from ee.c */
 extern WINDOW *text_win;
