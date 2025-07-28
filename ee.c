@@ -1333,10 +1333,12 @@ quit(int noverify)
 		if (info_window)
 			wrefresh(info_win);
 		wrefresh(com_win);
-		resetty();
-		endwin();
-		putchar('\n');
-		exit(0);
+                fputs("\x1b[?2004l", stdout); /* disable bracketed paste */
+                fflush(stdout);
+                resetty();
+                endwin();
+                putchar('\n');
+                exit(0);
 	}
 	else
 	{
@@ -1353,6 +1355,8 @@ edit_abort(int arg)
 {
         (void)arg;
         wrefresh(com_win);
+        fputs("\x1b[?2004l", stdout); /* disable bracketed paste */
+        fflush(stdout);
         resetty();
         endwin();
         putchar('\n');
@@ -1759,11 +1763,13 @@ sh_command(char *string)
 	if (!in_pipe)
 	{
 		keypad(com_win, FALSE);
-		keypad(text_win, FALSE);
-		echo();
-		nl();
-		noraw();
-		resetty();
+                keypad(text_win, FALSE);
+                echo();
+                nl();
+                noraw();
+                fputs("\x1b[?2004l", stdout); /* disable bracketed paste */
+                fflush(stdout);
+                resetty();
 
 #ifndef NCURSE
 		endwin();

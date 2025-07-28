@@ -13,6 +13,8 @@
 
 #include "config.h"
 #define max(a, b) ((a) > (b) ? (a) : (b))
+
+int collecting_paste = 0;
 /* globals from ee.c */
 extern int in;
 extern int scr_vert;
@@ -50,18 +52,88 @@ void adv_word(void);
 void adv_line(void);
 void paint_info_win(void);
 void midscreen(int line, ee_char *pnt);
-int collect_input_chunk(int *buf, int max)
+static int read_seq(wint_t *seq, int len)
 {
+    for (int i = 0; i < len; i++) {
+        if (wget_wch(text_win, &seq[i]) == ERR) {
+            for (int j = i - 1; j >= 0; j--)
+                unget_wch(seq[j]);
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int check_start_seq(void)
+{
+    wint_t s[5];
+    if (!read_seq(s, 5))
+        return 0;
+    if (s[0] == '[' && s[1] == '2' && s[2] == '0' && s[3] == '0' && s[4] == '~')
+        return 1;
+    for (int i = 4; i >= 0; i--)
+        unget_wch(s[i]);
+    return 0;
+}
+
+static int check_end_seq(void)
+{
+    wint_t s[5];
+    if (!read_seq(s, 5))
+        return 0;
+    if (s[0] == '[' && s[1] == '2' && s[2] == '0' && s[3] == '1' && s[4] == '~')
+        return 1;
+    for (int i = 4; i >= 0; i--)
+        unget_wch(s[i]);
+    return 0;
+}
+
+int collect_input_chunk(int **buf)
+{
+    collecting_paste = 0;
+    size_t cap = 64;
+    int *p = malloc(cap * sizeof(int));
     int len = 0;
     wint_t ch;
     int rc = wget_wch(text_win, &ch);
-    if (rc == ERR)
+    if (rc == ERR) {
+        free(p);
+        *buf = NULL;
         return 0;
-    buf[len++] = (int)ch;
+    }
+
+    if (ch == 27) {
+        nodelay(text_win, TRUE);
+        if (check_start_seq()) {
+            undo_begin_chunk();
+            collecting_paste = 1;
+            cap = 1024;
+            p = realloc(p, cap * sizeof(int));
+            len = 0;
+            while (1) {
+                rc = wget_wch(text_win, &ch);
+                if (rc == ERR)
+                    continue;
+                if (ch == 27 && check_end_seq()) {
+                    nodelay(text_win, FALSE);
+                    *buf = p;
+                    return len;
+                }
+                if ((size_t)len >= cap) {
+                    cap *= 2;
+                    p = realloc(p, cap * sizeof(int));
+                }
+                p[len++] = (int)ch;
+            }
+        }
+        nodelay(text_win, FALSE);
+    }
+
+    p[len++] = (int)ch;
 
     nodelay(text_win, TRUE);
     struct timespec delay = {0, 30000000};
-    while (len < max) {
+    while (1) {
         rc = wget_wch(text_win, &ch);
         if (rc == ERR) {
             nanosleep(&delay, NULL);
@@ -69,9 +141,23 @@ int collect_input_chunk(int *buf, int max)
             if (rc == ERR)
                 break;
         }
-        buf[len++] = (int)ch;
+        if (ch == 27 && check_start_seq()) {
+            unget_wch('~');
+            unget_wch('0');
+            unget_wch('0');
+            unget_wch('2');
+            unget_wch('[');
+            unget_wch(27);
+            break;
+        }
+        if ((size_t)len >= cap) {
+            cap *= 2;
+            p = realloc(p, cap * sizeof(int));
+        }
+        p[len++] = (int)ch;
     }
     nodelay(text_win, FALSE);
+    *buf = p;
     return len;
 }
 

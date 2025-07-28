@@ -173,14 +173,15 @@ void run_editor(void)
 
         wrefresh(text_win);
 
-        int buf[4096];
-        int buf_len = collect_input_chunk(buf, 4096);
+        int *buf = NULL;
+        int buf_len = collect_input_chunk(&buf);
+        int was_paste = collecting_paste;
 
         struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
         long diff_ms = (now.tv_sec - last_input_time.tv_sec) * 1000L +
                        (now.tv_nsec - last_input_time.tv_nsec) / 1000000L;
-        if (last_input_time.tv_sec == 0 || diff_ms > 500 || buf_len > 1)
+        if (!was_paste && (last_input_time.tv_sec == 0 || diff_ms > 500 || buf_len > 1))
             undo_end_chunk();
         last_input_time = now;
 
@@ -214,6 +215,7 @@ void run_editor(void)
                     control();
             }
         }
+        free(buf);
         undo_end_chunk();
     }
 }
@@ -228,6 +230,8 @@ void set_up_term(void)
         nonl();
         meta(stdscr, TRUE);
         curses_initialized = TRUE;
+        fputs("\x1b[?2004h", stdout); /* enable bracketed paste */
+        fflush(stdout);
     }
 
     if (((LINES > 15) && (COLS >= 80)) && info_window)
