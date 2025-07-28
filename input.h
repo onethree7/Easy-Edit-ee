@@ -1,7 +1,7 @@
 #ifndef INPUT_H
 #define INPUT_H
 
-int collect_input_chunk(int *buf, int max);
+int collect_input_chunk(int **buf);
 extern int collecting_paste;
 void start_action(void);
 void control(void);

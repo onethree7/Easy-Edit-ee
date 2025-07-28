@@ -88,49 +88,52 @@ static int check_end_seq(void)
     return 0;
 }
 
-int collect_input_chunk(int *buf, int max)
+int collect_input_chunk(int **buf)
 {
     collecting_paste = 0;
+    size_t cap = 64;
+    int *p = malloc(cap * sizeof(int));
     int len = 0;
     wint_t ch;
     int rc = wget_wch(text_win, &ch);
-    if (rc == ERR)
+    if (rc == ERR) {
+        free(p);
+        *buf = NULL;
         return 0;
+    }
 
     if (ch == 27) {
         nodelay(text_win, TRUE);
         if (check_start_seq()) {
             undo_begin_chunk();
             collecting_paste = 1;
-            size_t cap = 256, plen = 0;
-            int *pbuf = malloc(cap * sizeof(int));
+            cap = 1024;
+            p = realloc(p, cap * sizeof(int));
+            len = 0;
             while (1) {
                 rc = wget_wch(text_win, &ch);
                 if (rc == ERR)
                     continue;
                 if (ch == 27 && check_end_seq()) {
                     nodelay(text_win, FALSE);
-                    int out = plen < (size_t)max ? plen : (size_t)max;
-                    for (int i = 0; i < out; i++)
-                        buf[i] = pbuf[i];
-                    free(pbuf);
-                    return out;
+                    *buf = p;
+                    return len;
                 }
-                if (plen >= cap) {
+                if ((size_t)len >= cap) {
                     cap *= 2;
-                    pbuf = realloc(pbuf, cap * sizeof(int));
+                    p = realloc(p, cap * sizeof(int));
                 }
-                pbuf[plen++] = (int)ch;
+                p[len++] = (int)ch;
             }
         }
         nodelay(text_win, FALSE);
     }
 
-    buf[len++] = (int)ch;
+    p[len++] = (int)ch;
 
     nodelay(text_win, TRUE);
     struct timespec delay = {0, 30000000};
-    while (len < max) {
+    while (1) {
         rc = wget_wch(text_win, &ch);
         if (rc == ERR) {
             nanosleep(&delay, NULL);
@@ -147,9 +150,14 @@ int collect_input_chunk(int *buf, int max)
             unget_wch(27);
             break;
         }
-        buf[len++] = (int)ch;
+        if ((size_t)len >= cap) {
+            cap *= 2;
+            p = realloc(p, cap * sizeof(int));
+        }
+        p[len++] = (int)ch;
     }
     nodelay(text_win, FALSE);
+    *buf = p;
     return len;
 }
 

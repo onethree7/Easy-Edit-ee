@@ -173,8 +173,8 @@ void run_editor(void)
 
         wrefresh(text_win);
 
-        int buf[4096];
-        int buf_len = collect_input_chunk(buf, 4096);
+        int *buf = NULL;
+        int buf_len = collect_input_chunk(&buf);
         int was_paste = collecting_paste;
 
         struct timespec now;
@@ -215,6 +215,7 @@ void run_editor(void)
                     control();
             }
         }
+        free(buf);
         undo_end_chunk();
     }
 }
