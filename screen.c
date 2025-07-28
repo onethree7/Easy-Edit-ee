@@ -14,12 +14,6 @@ extern int local_COLS;
 #define TAB 9
 #define CONTROL_KEYS 1
 #define COMMANDS 2
-#ifndef max
-#define max(a,b) ((a) > (b) ? (a) : (b))
-#endif
-#ifndef min
-#define min(a,b) ((a) < (b) ? (a) : (b))
-#endif
 
 /* external globals from ee.c */
 extern WINDOW *text_win;

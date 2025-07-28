@@ -12,7 +12,6 @@
 #include "menu.h"
 
 #include "config.h"
-#define max(a, b) ((a) > (b) ? (a) : (b))
 
 int collecting_paste = 0;
 /* globals from ee.c */

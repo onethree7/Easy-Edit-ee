@@ -82,6 +82,7 @@ char * new_curse_name= "@(#) new_curse.c $Revision: 1.54 $";
 #include <sys/ioctl.h>
 #endif
 
+#include "config.h"
 
 WINDOW *curscr;
 static WINDOW *virtual_scr;
@@ -92,7 +93,6 @@ WINDOW *last_window_refreshed;
 	struct winsize ws;
 #endif
 
-#define min(a, b)	(a < b ? a : b)
 #define highbitset(a)	((a) & 0x80)
 
 #ifndef CAP
@@ -2206,11 +2206,6 @@ WINDOW *window;
 	window->scroll_up = window->scroll_down = 0;
 	last_window_refreshed = window;
 }
-static void
-flushinp(void)                      /* flush input                          */
-{
-}
-
 void 
 ungetch(c)			/* push a character back on input	*/
 int c;
@@ -2744,27 +2739,6 @@ nonl()
 #endif
 }
 
-static void
-saveterm(void)
-{
-}
-
-void 
-fixterm()
-{
-}
-
-static void
-resetterm(void)
-{
-}
-
-void 
-nodelay(window, flag)
-WINDOW *window;
-int flag;
-{
-}
 
 void 
 idlok(window, flag)

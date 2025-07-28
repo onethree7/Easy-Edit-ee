@@ -1,3 +1,5 @@
+#define _XOPEN_SOURCE 600
+#define _XOPEN_SOURCE_EXTENDED 1
 #include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
@@ -9,8 +11,6 @@
 void nc_setattrib(int);
 void nc_clearattrib(int);
 
-#define max(a,b) ((a) > (b) ? (a) : (b))
-#define min(a,b) ((a) < (b) ? (a) : (b))
 
 /* globals from ee.c */
 extern int in;

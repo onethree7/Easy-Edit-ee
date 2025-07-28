@@ -3,7 +3,19 @@
 
 #include <nl_types.h>
 #include <ncursesw/curses.h>
+#include <wchar.h>
 #include "menu.h"
+
+#ifndef max
+#define max(a,b) ((a) > (b) ? (a) : (b))
+#endif
+
+#ifndef min
+#define min(a,b) ((a) < (b) ? (a) : (b))
+#endif
+
+int wcwidth(wchar_t);
+int waddnwstr(WINDOW *, const wchar_t *, int);
 
 extern int expand_tabs;
 extern int info_window;
