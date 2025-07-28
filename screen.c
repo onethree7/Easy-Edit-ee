@@ -7,7 +7,10 @@
 #include "fileio.h"
 #include "undo.h"
 #include "editor.h"
+#include "config.h"
 
+extern int local_LINES;
+extern int local_COLS;
 #define TAB 9
 #define CONTROL_KEYS 1
 #define COMMANDS 2
@@ -22,23 +25,12 @@
 extern WINDOW *text_win;
 extern WINDOW *com_win;
 extern WINDOW *info_win;
-extern int info_window;
 extern int last_col;
 extern int scr_vert;
 extern int scr_horz;
 extern int horiz_offset;
 extern int clear_com_win;
 extern int info_type;
-extern char *separator;
-extern char *control_keys[];
-extern char *emacs_control_keys[];
-extern char *command_strings[];
-extern int nohighlight;
-extern int emacs_keys_mode;
-extern int local_LINES;
-extern int local_COLS;
-extern int eightbit;
-extern int ee_chinese;
 extern int last_line;
 extern WINDOW *help_win;
 

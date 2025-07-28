@@ -11,6 +11,7 @@
 #include "text.h"
 #include "menu.h"
 
+#include "config.h"
 #define max(a, b) ((a) > (b) ? (a) : (b))
 /* globals from ee.c */
 extern int in;
@@ -19,7 +20,6 @@ extern int scr_horz;
 extern int horiz_offset;
 extern int last_line;
 extern int gold;
-extern char *ascii_code_str;
 extern WINDOW *text_win;
 extern ee_char *point;
 

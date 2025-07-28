@@ -8,6 +8,7 @@
 #include "buffer.h"
 #include "search.h"
 
+#include "config.h"
 /* Extern globals from ee.c */
 extern struct text *curr_line;
 extern struct text *srch_line;
@@ -27,10 +28,6 @@ extern int case_sen;
 extern int last_line;
 extern WINDOW *com_win;
 extern WINDOW *text_win;
-extern char *searching_msg;
-extern char *str_not_found_msg;
-extern char *line_num_str;
-extern char *search_prompt_str;
 extern int gold;
 
 /* helper from ee.c */
