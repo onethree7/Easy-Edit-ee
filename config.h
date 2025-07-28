@@ -5,6 +5,14 @@
 #include <ncursesw/curses.h>
 #include "menu.h"
 
+#ifndef max
+#define max(a,b) ((a) > (b) ? (a) : (b))
+#endif
+
+#ifndef min
+#define min(a,b) ((a) < (b) ? (a) : (b))
+#endif
+
 extern int expand_tabs;
 extern int info_window;
 extern int case_sen;

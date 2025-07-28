@@ -98,8 +98,6 @@ char *version = "@(#) ee, version "  EE_VERSION  " $Revision: 1.104 $";
 #endif
 
 #define TAB 9
-#define max(a, b)       ((a) > (b) ? (a) : (b))
-#define min(a, b)       ((a) < (b) ? (a) : (b))
 
 /*
  |	defines for type of data to show in info window
@@ -1386,24 +1384,8 @@ delete_text(void)
 
 
 /* prompt and read search string (srch_str)	*/
+void del_word(void)
 
-/* delete current character	*/
-static void
-del_char(void)
-{
-undo_action();
-}
-
-/* undelete last deleted character	*/
-static void
-undel_char(void)
-{
-        redo_action();
-}
-
-/* delete word in front of cursor	*/
-void 
-del_word(void)
 {
         start_action();
         int tposit;
@@ -2094,7 +2076,6 @@ Format(void)
 	int offset;
 	int temp_case;
 	int status;
-	int tmp_af;
 	int counter;
 	ee_char *line;
 	ee_char *tmp_srchstr;
@@ -2127,9 +2108,8 @@ Format(void)
  |	get current position in paragraph, so after formatting, the cursor 
  |	will be in the same relative position
  */
+        offset = position;
 
-	tmp_af = auto_format;
-	offset = position;
 	if (position != 1)
 		prev_word();
 	temp_dword = d_word;
