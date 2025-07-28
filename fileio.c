@@ -9,6 +9,7 @@
 #include "buffer.h"
 #include "fileio.h"
 
+#include "config.h"
 /* extern globals from ee.c */
 extern int recv_file;
 extern int input_file;
@@ -24,16 +25,8 @@ extern int horiz_offset;
 extern struct text *curr_line;
 extern struct text *first_line;
 extern ee_char *point;
-extern char *reading_file_msg;
-extern char *read_only_msg;
-extern char *file_read_lines_msg;
-extern char *file_exists_prompt;
-extern char *yes_char;
 extern int clear_com_win;
 extern int in;
-extern char *create_file_fail_msg;
-extern char *writing_file_msg;
-extern char *file_written_msg;
 extern FILE *temp_fp;
 
 /* functions from ee.c */

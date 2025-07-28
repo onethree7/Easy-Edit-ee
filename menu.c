@@ -5,6 +5,7 @@
 
 #include "menu.h"
 
+#include "config.h"
 void nc_setattrib(int);
 void nc_clearattrib(int);
 
@@ -17,26 +18,6 @@ extern WINDOW *com_win;
 extern WINDOW *help_win;
 extern WINDOW *text_win;
 extern int clear_com_win;
-extern int info_window;
-extern int nohighlight;
-extern int emacs_keys_mode;
-extern int expand_tabs;
-extern int case_sen;
-extern int observ_margins;
-extern int auto_format;
-extern int eightbit;
-extern int right_margin;
-extern int ee_chinese;
-extern char *menu_cancel_msg;
-extern char *menu_too_lrg_msg;
-extern char *more_above_str;
-extern char *more_below_str;
-extern char *press_any_key_msg;
-extern char *ON;
-extern char *OFF;
-extern char *margin_prompt;
-extern char *help_text[];
-extern char *emacs_help_text[];
 extern void paint_info_win(void);
 extern void redraw(void);
 

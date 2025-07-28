@@ -88,7 +88,6 @@ char *version = "@(#) ee, version "  EE_VERSION  " $Revision: 1.104 $";
 /* ---- Internationalization fallback ---- */
 #ifndef NO_CATGETS
 #include <nl_types.h>
-nl_catd catalog;
 #else
 #define catgetlocal(a, b) (b)
 #endif /* NO_CATGETS */
@@ -116,6 +115,7 @@ nl_catd catalog;
 #include "screen.h"
 #include "search.h"
 #include "editor.h"
+#include "config.h"
 #include "input.h"
 #include "menu.h"
 struct text *first_line;
@@ -139,18 +139,13 @@ int recv_file;			/* indicate reading a file		*/
 int edit;			/* continue executing while true	*/
 int gold;			/* 'gold' function key pressed		*/
 int fildes;			/* file descriptor			*/
-int case_sen;			/* case sensitive search flag		*/
 int last_line;			/* last line for text display		*/
 int last_col;			/* last column for text display		*/
 int horiz_offset = 0;		/* offset from left edge of text	*/
 int clear_com_win;		/* flag to indicate com_win needs clearing */
 int text_changes = FALSE;	/* indicate changes have been made to text */
 int get_fd;			/* file descriptor for reading a file	*/
-int info_window = TRUE;		/* flag to indicate if help window visible */
 int info_type = CONTROL_KEYS;	/* flag to indicate type of info to display */
-int expand_tabs = TRUE;		/* flag for expanding tabs		*/
-int right_margin = 0;		/* the right margin 			*/
-int observ_margins = TRUE;	/* flag for whether margins are observed */
 int shell_fork;
 int temp_stdin;			/* temporary storage for stdin		*/
 int temp_stdout;		/* temp storage for stdout descriptor	*/
@@ -160,15 +155,9 @@ int pipe_in[2];			/* pipe file descriptors for input	*/
 int out_pipe;			/* flag that info is piped out		*/
 int in_pipe;			/* flag that info is piped in		*/
 int formatted = FALSE;		/* flag indicating paragraph formatted	*/
-int auto_format = FALSE;	/* flag for auto_format mode		*/
-int restricted = FALSE;		/* flag to indicate restricted mode	*/
-int nohighlight = FALSE;	/* turns off highlighting		*/
-int eightbit = TRUE;		/* eight bit character flag		*/
 int local_LINES = 0;		/* copy of LINES, to detect when win resizes */
 int local_COLS = 0;		/* copy of COLS, to detect when win resizes  */
 int curses_initialized = FALSE;	/* flag indicating if curses has been started*/
-int emacs_keys_mode = FALSE;	/* mode for if emacs key binings are used    */
-int ee_chinese = FALSE;		/* allows handling of multi-byte characters  */
 				/* by checking for high bit in a byte the    */
 				/* code recognizes a two-byte character      */
 				/* sequence				     */
@@ -185,8 +174,6 @@ ee_char *d_char;		/* deleted character			*/
 ee_char *d_word;		/* deleted word				*/
 ee_char *d_line;		/* deleted line				*/
 char in_string[513];	/* buffer for reading a file		*/
-char *print_command = "lpr";      /* string to use for the print command  */
-char *start_at_line = NULL;  /* move to this line at start of session*/
 int in;				/* input character			*/
 
 FILE *temp_fp;			/* temporary file pointer		*/
@@ -269,16 +256,10 @@ void leave_op(void);
 int Blank_Line(struct text *test_line);
 void Format(void);
 
-void dump_ee_conf(void);
-void echo_string(char *string);
 void spell_op(void);
 void ispell_op(void);
 int first_word_len(struct text *test_line);
 void Auto_Format(void);
-char *is_in_string(char *string, char *substring);
-char *resolve_name(char *name);
-int restrict_mode(void);
-int unique_test(char *string, char *list[]);
 
 #undef P_
 /*
@@ -289,14 +270,6 @@ int unique_test(char *string, char *list[]);
  */
 
 #define NUM_MODES_ITEMS 10
-
-struct menu_entries config_dump_menu[] = {
-	{"", NULL, NULL, NULL, NULL, 0}, 
-	{"", NULL, NULL, NULL, NULL, -1},
-	{"", NULL, NULL, NULL, NULL, -1},
-	{NULL, NULL, NULL, NULL, NULL, -1}
-	};
-
 struct menu_entries leave_menu[] = {
 	{"", NULL, NULL, NULL, NULL, -1}, 
 	{"", NULL, NULL, NULL, finish, -1}, 
@@ -351,115 +324,6 @@ struct menu_entries main_menu[] = {
 	{NULL, NULL, NULL, NULL, NULL, -1}
 	};
 
-char *help_text[23];
-char *control_keys[5];
-
-char *emacs_help_text[22];
-char *emacs_control_keys[5];
-
-char *command_strings[5];
-char *commands[32];
-char *init_strings[22];
-
-#define MENU_WARN 1
-
-#define max_alpha_char 36
-
-/*
- |	Declarations for strings for localization
- */
-
-char *com_win_message;		/* to be shown in com_win if no info window */
-char *no_file_string;
-char *ascii_code_str;
-char *printer_msg_str;
-char *command_str;
-char *file_write_prompt_str;
-char *file_read_prompt_str;
-char *char_str;
-char *unkn_cmd_str;
-char *non_unique_cmd_msg;
-char *line_num_str;
-char *line_len_str;
-char *current_file_str;
-char *usage0;
-char *usage1;
-char *usage2;
-char *usage3;
-char *usage4;
-char *file_is_dir_msg;
-char *new_file_msg;
-char *cant_open_msg;
-char *open_file_msg;
-char *file_read_fin_msg;
-char *reading_file_msg;
-char *read_only_msg;
-char *file_read_lines_msg;
-char *save_file_name_prompt;
-char *file_not_saved_msg;
-char *changes_made_prompt;
-char *yes_char;
-char *file_exists_prompt;
-char *create_file_fail_msg;
-char *writing_file_msg;
-char *file_written_msg;
-char *searching_msg;
-char *str_not_found_msg;
-char *search_prompt_str;
-char *exec_err_msg;
-char *continue_msg;
-char *menu_cancel_msg;
-char *menu_size_err_msg;
-char *press_any_key_msg;
-char *shell_prompt;
-char *formatting_msg;
-char *shell_echo_msg;
-char *spell_in_prog_msg;
-char *margin_prompt;
-char *restricted_msg;
-char *ON;
-char *OFF;
-char *HELP;
-char *WRITE;
-char *READ;
-char *LINE;
-char *FILE_str;
-char *CHARACTER;
-char *REDRAW;
-char *RESEQUENCE;
-char *AUTHOR;
-char *VERSION;
-char *CASE;
-char *NOCASE;
-char *EXPAND;
-char *NOEXPAND;
-char *Exit_string;
-char *QUIT_string;
-char *INFO;
-char *NOINFO;
-char *MARGINS;
-char *NOMARGINS;
-char *AUTOFORMAT;
-char *NOAUTOFORMAT;
-char *Echo;
-char *PRINTCOMMAND;
-char *RIGHTMARGIN;
-char *HIGHLIGHT;
-char *NOHIGHLIGHT;
-char *EIGHTBIT;
-char *NOEIGHTBIT;
-char *EMACS_string;
-char *NOEMACS_string;
-char *conf_dump_err_msg;
-char *conf_dump_success_msg;
-char *conf_not_saved_msg;
-char *ree_no_file_msg;
-char *cancel_string;
-char *menu_too_lrg_msg;
-char *more_above_str, *more_below_str;
-char *separator = "===============================================================================";
-
-char *chinese_cmd, *nochinese_cmd;
 
 #ifndef __STDC__
 #ifndef HAS_STDLIB
@@ -1062,26 +926,26 @@ command(char *cmd_str1)
 		case_sen = TRUE;
 	else if (compare(cmd_str, NOCASE, FALSE))
 		case_sen = FALSE;
-	else if (compare(cmd_str, EXPAND, FALSE))
-		expand_tabs = TRUE;
-	else if (compare(cmd_str, NOEXPAND, FALSE))
-		expand_tabs = FALSE;
+        else if (compare(cmd_str, EXPAND, FALSE))
+                expand_tabs = TRUE;
+        else if (compare(cmd_str, NOEXPAND, FALSE))
+                expand_tabs = FALSE;
 	else if (compare(cmd_str, Exit_string, FALSE))
 		finish();
-	else if (compare(cmd_str, chinese_cmd, FALSE))
-	{
-		ee_chinese = TRUE;
+        else if (compare(cmd_str, chinese_cmd, FALSE))
+        {
+                ee_chinese = TRUE;
 #ifdef NCURSE
-		nc_setattrib(A_NC_BIG5);
+                nc_setattrib(A_NC_BIG5);
 #endif /* NCURSE */
-	}
-	else if (compare(cmd_str, nochinese_cmd, FALSE))
-	{
-		ee_chinese = FALSE;
+        }
+        else if (compare(cmd_str, nochinese_cmd, FALSE))
+        {
+                ee_chinese = FALSE;
 #ifdef NCURSE
-		nc_clearattrib(A_NC_BIG5);
+                nc_clearattrib(A_NC_BIG5);
 #endif /* NCURSE */
-	}
+        }
 	else if (compare(cmd_str, QUIT_string, FALSE))
 		quit(0);
 	else if (*cmd_str == '!')
@@ -1255,7 +1119,6 @@ get_options(int numargs, char *arguments[])
 	else
 		name++;
 	if (!strcmp(name, "ree"))
-		restricted = TRUE;
 
 	top_of_stack = NULL;
 	input_file = FALSE;
@@ -1270,12 +1133,11 @@ get_options(int numargs, char *arguments[])
 		}
 		else if (!strcmp("-e", buff))
 		{
-			expand_tabs = FALSE;
 		}
-		else if (!strcmp("-h", buff))
-		{
-			nohighlight = TRUE;
-		}
+                else if (!strcmp("-h", buff))
+                {
+                        nohighlight = TRUE;
+                }
 		else if (!strcmp("-?", buff))
 		{
 			fprintf(stderr, usage0, arguments[0]);
@@ -1285,11 +1147,11 @@ get_options(int numargs, char *arguments[])
 			fputs(usage4, stderr);
 			exit(1);
 		}
-		else if ((*buff == '+') && (start_at_line == NULL))
-		{
-			buff++;
-			start_at_line = buff;
-		}
+                else if ((*buff == '+') && (start_at_line == NULL))
+                {
+                        buff++;
+                        start_at_line = buff;
+                }
 		else if (!(strcmp("--", buff)))
 			no_more_opts = TRUE;
 		else
@@ -1393,7 +1255,6 @@ check_fp(void)
 			line_num = atoi(start_at_line) - 1;
 			move_rel('d', line_num);
 			line_num = 0;
-			start_at_line = NULL;
 		}
 	}
 	else
@@ -2262,7 +2123,6 @@ Format(void)
  */
 
 	tmp_af = auto_format;
-	auto_format = FALSE;
 	offset = position;
 	if (position != 1)
 		prev_word();
@@ -2311,7 +2171,6 @@ Format(void)
 	while (!Blank_Line(curr_line->prev_line))
 		bol();
 
-	observ_margins = FALSE;
 
 /*
  |	Start going through lines, putting spaces at end of lines if they do 
@@ -2369,7 +2228,6 @@ Format(void)
 		right(TRUE);
 	}
 
-	observ_margins = TRUE;
 	bol();
 
 	wmove(com_win, 0, 0);
@@ -2435,225 +2293,62 @@ Format(void)
 	d_char[0] = temp_d_char[0];
 	d_char[1] = temp_d_char[1];
 	d_char[2] = temp_d_char[2];
-	auto_format = tmp_af;
 
 	midscreen(scr_vert, point);
 	werase(com_win);
-	wrefresh(com_win);
+        wrefresh(com_win);
 }
 
-char *init_name[3] = {
-	"/usr/share/misc/init.ee", 
-	NULL, 
-	".init.ee"
-	};
-
-void 
-dump_ee_conf(void)	
-{
-	FILE *init_file;
-	FILE *old_init_file = NULL;
-	char *file_name = ".init.ee";
-	char *home_dir =  "~/.init.ee";
-	char buffer[512];
-	struct stat buf;
-	char *string;
-	int length;
-	int option = 0;
-
-	if (restrict_mode())
-	{
-		return;
-	}
-
-	option = menu_op(config_dump_menu);
-
-	werase(com_win);
-	wmove(com_win, 0, 0);
-
-	if (option == 0)
-	{
-		wprintw(com_win, "%s", conf_not_saved_msg);
-		wrefresh(com_win);
-		return;
-	}
-	else if (option == 2)
-		file_name = resolve_name(home_dir);
-
-	/*
-	 |	If a .init.ee file exists, move it to .init.ee.old.
-	 */
-
-	if (stat(file_name, &buf) != -1)
-	{
-                snprintf(buffer, sizeof(buffer), "%s.old", file_name);
-                unlink(buffer);
-                if (link(file_name, buffer) != 0) {
-                        perror("link");
-                }
-                unlink(file_name);
-		old_init_file = fopen(buffer, "r");
-	}
-
-	init_file = fopen(file_name, "w");
-	if (init_file == NULL)
-	{
-		wprintw(com_win, "%s", conf_dump_err_msg);
-		wrefresh(com_win);
-		return;
-	}
-
-	if (old_init_file != NULL)
-	{
-		/*
-		 |	Copy non-configuration info into new .init.ee file.
-		 */
-		while ((string = fgets(buffer, 512, old_init_file)) != NULL)
-		{
-			length = strlen(string);
-			string[length - 1] = '\0';
-
-			if (unique_test(string, init_strings) == 1)
-			{
-				if (compare(string, Echo, FALSE))
-				{
-					fprintf(init_file, "%s\n", string);
-				}
-			}
-			else
-				fprintf(init_file, "%s\n", string);
-		}
-
-		fclose(old_init_file);
-	}
-
-	fprintf(init_file, "%s\n", case_sen ? CASE : NOCASE);
-	fprintf(init_file, "%s\n", expand_tabs ? EXPAND : NOEXPAND);
-	fprintf(init_file, "%s\n", info_window ? INFO : NOINFO );
-	fprintf(init_file, "%s\n", observ_margins ? MARGINS : NOMARGINS );
-	fprintf(init_file, "%s\n", auto_format ? AUTOFORMAT : NOAUTOFORMAT );
-	fprintf(init_file, "%s %s\n", PRINTCOMMAND, print_command);
-	fprintf(init_file, "%s %d\n", RIGHTMARGIN, right_margin);
-	fprintf(init_file, "%s\n", nohighlight ? NOHIGHLIGHT : HIGHLIGHT );
-	fprintf(init_file, "%s\n", eightbit ? EIGHTBIT : NOEIGHTBIT );
-	fprintf(init_file, "%s\n", emacs_keys_mode ? EMACS_string : NOEMACS_string );
-	fprintf(init_file, "%s\n", ee_chinese ? chinese_cmd : nochinese_cmd );
-
-	fclose(init_file);
-
-	wprintw(com_win, conf_dump_success_msg, file_name);
-	wrefresh(com_win);
-
-	if ((option == 2) && (file_name != home_dir))
-	{
-		free(file_name);
-	}
-}
-
-/* echo the given string	*/
-void 
-echo_string(char *string)
-{
-	char *temp;
-	int Counter;
-
-		temp = string;
-		while (*temp != '\0')
-		{
-			if (*temp == '\\')
-			{
-				temp++;
-				if (*temp == 'n')
-					putchar('\n');
-				else if (*temp == 't')
-					putchar('\t');
-				else if (*temp == 'b')
-					putchar('\b');
-				else if (*temp == 'r')
-					putchar('\r');
-				else if (*temp == 'f')
-					putchar('\f');
-				else if ((*temp == 'e') || (*temp == 'E'))
-					putchar('\033');	/* escape */
-				else if (*temp == '\\')
-					putchar('\\');
-				else if (*temp == '\'')
-					putchar('\'');
-				else if ((*temp >= '0') && (*temp <= '9'))
-				{
-					Counter = 0;
-					while ((*temp >= '0') && (*temp <= '9'))
-					{
-						Counter = (8 * Counter) + (*temp - '0');
-						temp++;
-					}
-					putchar(Counter);
-					temp--;
-				}
-				temp++;
-			}
-			else
-			{
-				putchar(*temp);
-				temp++;
-			}
-		}
-
-	fflush(stdout);
-}
-
-/* check spelling of words in the editor	*/
-void 
+void
 spell_op(void)
 {
-	if (restrict_mode())
-	{
-		return;
-	}
-	top();			/* go to top of file		*/
-	insert_line(FALSE);	/* create two blank lines	*/
-	insert_line(FALSE);
-	top();
-	command(shell_echo_msg);
-	adv_line();
-	wmove(com_win, 0, 0);
-	wprintw(com_win, "%s", spell_in_prog_msg);
-	wrefresh(com_win);
-	command("<>!spell");	/* send contents of buffer to command 'spell' 
-				   and read the results back into the editor */
+        if (restrict_mode())
+        {
+                return;
+        }
+        top();
+        insert_line(FALSE);
+        insert_line(FALSE);
+        top();
+        command(shell_echo_msg);
+        adv_line();
+        wmove(com_win, 0, 0);
+        wprintw(com_win, "%s", spell_in_prog_msg);
+        wrefresh(com_win);
+        command("<>!spell");
 }
 
-void 
+void
 ispell_op(void)
 {
-	char template[128], *name;
-	char string[256];
-	int fd;
+        char template[128], *name;
+        char string[256];
+        int fd;
 
-	if (restrict_mode())
-	{
-		return;
-	}
+        if (restrict_mode())
+        {
+                return;
+        }
         snprintf(template, sizeof(template), "/tmp/ee.XXXXXXXX");
-	fd = mkstemp(template);
-	name = template;
-	if (fd < 0) {
-		wmove(com_win, 0, 0);
-		wprintw(com_win, create_file_fail_msg, name);
-		wrefresh(com_win);
-		return;
-	}
-	close(fd);
-	if (write_file(name, 0))
-	{
+        fd = mkstemp(template);
+        name = template;
+        if (fd < 0) {
+                wmove(com_win, 0, 0);
+                wprintw(com_win, create_file_fail_msg, name);
+                wrefresh(com_win);
+                return;
+        }
+        close(fd);
+        if (write_file(name, 0))
+        {
                 snprintf(string, sizeof(string), "ispell %s", name);
-		sh_command(string);
-		delete_text();
-		tmp_file = name;
-		recv_file = TRUE;
-		check_fp();
-		unlink(name);
-	}
+                sh_command(string);
+                delete_text();
+                tmp_file = name;
+                recv_file = TRUE;
+                check_fp();
+                unlink(name);
+        }
 }
 
 int
@@ -2734,7 +2429,6 @@ Auto_Format(void)
 	tmp_d_line = d_line;
 	tmp_d_line_length = dlt_line->line_length;
 	d_line = NULL;
-	auto_format = FALSE;
 	offset = position;
 	if ((position != 1) && ((*point == ' ') || (*point == '\t') || (position == curr_line->line_length) || (*point == '\0')))
 		prev_word();
@@ -2945,7 +2639,6 @@ Auto_Format(void)
 	d_char[0] = temp_d_char[0];
 	d_char[1] = temp_d_char[1];
 	d_char[2] = temp_d_char[2];
-	auto_format = TRUE;
 	dlt_line->line_length = tmp_d_line_length;
 	d_line = tmp_d_line;
 
@@ -2954,211 +2647,3 @@ Auto_Format(void)
 }
 
 
-/* a strchr() look-alike for systems without strchr() */
-char *
-is_in_string(char *string, char *substring)
-{
-	char *full, *sub;
-
-	for (sub = substring; (sub != NULL) && (*sub != '\0'); sub++)
-	{
-		for (full = string; (full != NULL) && (*full != '\0'); 
-				full++)
-		{
-			if (*sub == *full)
-				return(full);
-		}
-	}
-	return(NULL);
-}
-
-/*
- |	handle names of the form "~/file", "~user/file", 
- |	"$HOME/foo", "~/$FOO", etc.
- */
-
-char *
-resolve_name(char *name)
-{
-	char long_buffer[1024];
-	char short_buffer[128];
-	char *buffer;
-	char *slash;
-	char *tmp;
-	char *start_of_var;
-	int offset;
-	int index;
-	int counter;
-	struct passwd *user;
-
-	if (name[0] == '~') 
-	{
-		if (name[1] == '/')
-		{
-			index = getuid();
-			user = (struct passwd *) getpwuid(index);
-			slash = name + 1;
-		}
-		else
-		{
-			slash = strchr(name, '/');
-			if (slash == NULL) 
-				return(name);
-			*slash = '\0';
-			user = (struct passwd *) getpwnam((name + 1));
-			*slash = '/';
-		}
-		if (user == NULL) 
-		{
-			return(name);
-		}
-		buffer = malloc(strlen(user->pw_dir) + strlen(slash) + 1);
-		strcpy(buffer, user->pw_dir);
-		strcat(buffer, slash);
-	}
-	else
-		buffer = name;
-
-	if (is_in_string(buffer, "$"))
-	{
-		tmp = buffer;
-		index = 0;
-		
-		while ((*tmp != '\0') && (index < 1024))
-		{
-
-			while ((*tmp != '\0') && (*tmp != '$') && 
-				(index < 1024))
-			{
-				long_buffer[index] = *tmp;
-				tmp++;
-				index++;
-			}
-
-			if ((*tmp == '$') && (index < 1024))
-			{
-				counter = 0;
-				start_of_var = tmp;
-				tmp++;
-				if (*tmp == '{') /* } */	/* bracketed variable name */
-				{
-					tmp++;				/* { */
-					while ((*tmp != '\0') && 
-						(*tmp != '}') && 
-						(counter < 128))
-					{
-						short_buffer[counter] = *tmp;
-						counter++;
-						tmp++;
-					}			/* { */
-					if (*tmp == '}')
-						tmp++;
-				}
-				else
-				{
-					while ((*tmp != '\0') && 
-					       (*tmp != '/') && 
-					       (*tmp != '$') && 
-					       (counter < 128))
-					{
-						short_buffer[counter] = *tmp;
-						counter++;
-						tmp++;
-					}
-				}
-				short_buffer[counter] = '\0';
-				if ((slash = getenv(short_buffer)) != NULL)
-				{
-					offset = strlen(slash);
-					if ((offset + index) < 1024)
-						strcpy(&long_buffer[index], slash);
-					index += offset;
-				}
-				else
-				{
-					while ((start_of_var != tmp) && (index < 1024))
-					{
-						long_buffer[index] = *start_of_var;
-						start_of_var++;
-						index++;
-					}
-				}
-			}
-		}
-
-		if (index == 1024)
-			return(buffer);
-		else
-			long_buffer[index] = '\0';
-
-		if (name != buffer)
-			free(buffer);
-		buffer = malloc(index + 1);
-		strcpy(buffer, long_buffer);
-	}
-
-	return(buffer);
-}
-
-int
-restrict_mode(void)
-{
-	if (!restricted)
-		return(FALSE);
-
-	wmove(com_win, 0, 0);
-	wprintw(com_win, "%s", restricted_msg);
-	wclrtoeol(com_win);
-	wrefresh(com_win);
-	clear_com_win = TRUE;
-	return(TRUE);
-}
-
-/*
- |	The following routine tests the input string against the list of 
- |	strings, to determine if the string is a unique match with one of the 
- |	valid values.
- */
-
-int 
-unique_test(char *string, char *list[])
-{
-	int counter;
-	int num_match;
-	int result;
-
-	num_match = 0;
-	counter = 0;
-	while (list[counter] != NULL)
-	{
-		result = compare(string, list[counter], FALSE);
-		if (result)
-			num_match++;
-		counter++;
-	}
-	return(num_match);
-}
-
-#ifndef NO_CATGETS
-/*
- |	Get the catalog entry, and if it got it from the catalog, 
- |	make a copy, since the buffer will be overwritten by the 
- |	next call to catgets().
- */
-
-char *
-catgetlocal(int number, char *string)
-{
-	char *temp1;
-	char *temp2;
-
-	temp1 = catgets(catalog, 1, number, string);
-	if (temp1 != string)
-	{
-		temp2 = malloc(strlen(temp1) + 1);
-		strcpy(temp2, temp1);
-		temp1 = temp2;
-	}
-	return(temp1);
-}
-#endif /* NO_CATGETS */
