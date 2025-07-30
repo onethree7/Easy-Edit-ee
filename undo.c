@@ -5,7 +5,6 @@
 #include "undo.h"
 
 /* use the globals from ee.c */
-
 extern void draw_screen(void);
 extern void redraw(void);
 extern struct text *txtalloc(void);
@@ -84,12 +83,6 @@ static void apply_snapshot(struct snapshot *snap)
     horiz_offset = snap->horiz_offset;
     point = curr_line->line + position - 1;
     redraw();
-}
-
-void undo_init(void)
-{
-    undo_pos = redo_pos = 0;
-    chunk_saved = 1;
 }
 
 void undo_push_state(void)

@@ -31,3 +31,17 @@ Emoji support and other exotic glyphs remain out of scope for now.
 - Testing coverage for multi-byte sequences is minimal.
 
 The immediate next tasks are to audit remaining byte-oriented functions, update them to use `ee_char`, and verify editing of the languages listed in the problem statement.
+
+### Audit of `new_curse.c`
+
+Most drawing routines in `new_curse.c` still operate on `char` arrays. Examples
+include `waddch`, `waddstr` and the internal screen buffers that use `char *`.
+These functions assume one byte per glyph and therefore break when multi-byte
+UTF‑8 sequences are supplied. Wide character aware wrappers should be added that
+convert between `ee_char` (`wchar_t`) and UTF‑8 before writing to the terminal.
+Until then, Unicode output will remain lossy for complex scripts.
+
+Next steps:
+- Introduce `wadd_wch` style helpers for multi-byte output.
+- Replace internal `char` buffers with `wchar_t` buffers where practical.
+- Ensure `scan_w` and related cursor calculations account for the new width.

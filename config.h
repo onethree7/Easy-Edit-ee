@@ -1,0 +1,141 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
+#include <nl_types.h>
+#include <ncursesw/curses.h>
+#include "menu.h"
+
+#ifndef max
+#define max(a,b) ((a) > (b) ? (a) : (b))
+#endif
+
+#ifndef min
+#define min(a,b) ((a) < (b) ? (a) : (b))
+#endif
+
+extern int expand_tabs;
+extern int info_window;
+extern int case_sen;
+extern int observ_margins;
+extern int auto_format;
+extern int right_margin;
+extern int restricted;
+extern int nohighlight;
+extern int eightbit;
+extern int emacs_keys_mode;
+extern int ee_chinese;
+extern char *print_command;
+extern char *start_at_line;
+extern char *commands[];
+extern char *init_strings[];
+extern char *mode_strings[];
+extern nl_catd catalog;
+extern char *help_text[];
+extern char *control_keys[];
+extern char *emacs_help_text[];
+extern char *emacs_control_keys[];
+extern char *command_strings[];
+extern char *init_name[];
+extern char *com_win_message;
+extern char *no_file_string;
+extern char *ascii_code_str;
+extern char *printer_msg_str;
+extern char *command_str;
+extern char *file_write_prompt_str;
+extern char *file_read_prompt_str;
+extern char *char_str;
+extern char *unkn_cmd_str;
+extern char *non_unique_cmd_msg;
+extern char *line_num_str;
+extern char *line_len_str;
+extern char *current_file_str;
+extern char *usage0;
+extern char *usage1;
+extern char *usage2;
+extern char *usage3;
+extern char *usage4;
+extern char *file_is_dir_msg;
+extern char *new_file_msg;
+extern char *cant_open_msg;
+extern char *open_file_msg;
+extern char *file_read_fin_msg;
+extern char *reading_file_msg;
+extern char *read_only_msg;
+extern char *file_read_lines_msg;
+extern char *save_file_name_prompt;
+extern char *file_not_saved_msg;
+extern char *changes_made_prompt;
+extern char *yes_char;
+extern char *file_exists_prompt;
+extern char *create_file_fail_msg;
+extern char *writing_file_msg;
+extern char *file_written_msg;
+extern char *searching_msg;
+extern char *str_not_found_msg;
+extern char *search_prompt_str;
+extern char *exec_err_msg;
+extern char *continue_msg;
+extern char *menu_cancel_msg;
+extern char *menu_size_err_msg;
+extern char *press_any_key_msg;
+extern char *shell_prompt;
+extern char *formatting_msg;
+extern char *shell_echo_msg;
+extern char *spell_in_prog_msg;
+extern char *margin_prompt;
+extern char *restricted_msg;
+extern char *ON;
+extern char *OFF;
+extern char *HELP;
+extern char *WRITE;
+extern char *READ;
+extern char *LINE;
+extern char *FILE_str;
+extern char *CHARACTER;
+extern char *REDRAW;
+extern char *RESEQUENCE;
+extern char *AUTHOR;
+extern char *VERSION;
+extern char *CASE;
+extern char *NOCASE;
+extern char *EXPAND;
+extern char *NOEXPAND;
+extern char *Exit_string;
+extern char *QUIT_string;
+extern char *INFO;
+extern char *NOINFO;
+extern char *MARGINS;
+extern char *NOMARGINS;
+extern char *AUTOFORMAT;
+extern char *NOAUTOFORMAT;
+extern char *Echo;
+extern char *PRINTCOMMAND;
+extern char *RIGHTMARGIN;
+extern char *HIGHLIGHT;
+extern char *NOHIGHLIGHT;
+extern char *EIGHTBIT;
+extern char *NOEIGHTBIT;
+extern char *EMACS_string;
+extern char *NOEMACS_string;
+extern char *conf_dump_err_msg;
+extern char *conf_dump_success_msg;
+extern char *conf_not_saved_msg;
+extern char *ree_no_file_msg;
+extern char *cancel_string;
+extern char *menu_too_lrg_msg;
+extern char *more_above_str;
+extern char *more_below_str;
+extern char *separator;
+extern char *chinese_cmd;
+extern char *nochinese_cmd;
+
+extern struct menu_entries config_dump_menu[];
+
+void dump_ee_conf(void);
+void echo_string(char *string);
+char *resolve_name(char *name);
+int restrict_mode(void);
+int unique_test(char *string, char *list[]);
+char *catgetlocal(int number, char *string);
+
+#endif /* CONFIG_H */

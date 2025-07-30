@@ -1,3 +1,5 @@
 ee
 *.o
+*.obj
+tags
 Easy-Edit-ee/

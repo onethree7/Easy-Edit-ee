@@ -42,6 +42,7 @@ See the built-in help (`help` command or `^c`) for keybindings.
 - Retains much of the classic BSD behavior and keymap
 - NEW: Expanded undo/redo history (up to 100 steps)
 - Smarter undo grouping across consecutive edits (you can undo large blocks of text)
+- Ongoing modularization of the original `ee.c` for easier hacking
 
 ## Porting Notes
 

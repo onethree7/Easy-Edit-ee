@@ -16,8 +16,9 @@ at once.  The history lives only for the current session.
    and redo stacks.
 
 Large pastes are received as one chunk and therefore revert with a
-single undo.  Regular typing forms its own chunks so characters undo in
-order.
+single undo.  The editor now enables *bracketed paste* mode so pasted
+data streams in without size limits.  Regular typing forms its own
+chunks so characters undo in order.
 
 ## Commands
 

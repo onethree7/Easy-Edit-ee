@@ -2,6 +2,7 @@
 
 This document collects ideas and instructions for implementing future improvements. Follow these when adding features or refactoring the code.
 After reading this guide, consult `characters.md` for the current UTF-8 plan and progress.
+Refer to the module outline in [modules.md](modules.md) when moving code out of `ee.c`.
 
 ## Repository Clean‑up
 
@@ -51,6 +52,8 @@ After reading this guide, consult `characters.md` for the current UTF-8 plan and
 ## Status
 
 Undo support with grouped input chunks is complete for now. See `undo.md` for details.
+File I/O routines now reside in `fileio.c` as part of the ongoing module split.
+Screen drawing functions were moved to `screen.c` and the main editor loop now lives in `editor.c`.
 
 ## Coding Style
 
@@ -66,4 +69,8 @@ This file serves as a to‑do list and style reference. Update it whenever a new
 
 ## Current Work
 
-UTF-8 buffer refactoring has begun. See `characters.md` for the ongoing plan.
+The priority is splitting the remaining logic in `ee.c` into dedicated modules.
+`editor.c` and the core helpers have been separated. The search routines now
+live in `search.c`. Continue moving menu handling and input processing next as
+outlined in [modules.md](modules.md). UTF‑8 refactoring from `characters.md`
+continues once the split is mostly done.

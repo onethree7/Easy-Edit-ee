@@ -13,7 +13,6 @@ struct snapshot {
     int horiz_offset;
 };
 
-void undo_init(void);
 void undo_begin_chunk(void);
 void undo_end_chunk(void);
 void undo_push_state(void);
