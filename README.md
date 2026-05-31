@@ -66,4 +66,3 @@ This port is provided as-is and for my personal use/fun.
 ---
 
 Upstream: [https://cgit.freebsd.org/src/tree/contrib/ee](https://cgit.freebsd.org/src/tree/contrib/ee)
-Ported for Linux by [Florian Kefferpuetz]
